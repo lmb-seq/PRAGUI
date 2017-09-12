@@ -11,6 +11,11 @@ import uuid
 import glob
 
 import cross_fil_util as util
+import numpy as np
+
+sys.path.append('/home/paulafp/Documents/temp/crossFil/')
+from readCsvFile import readCsvFile
+
 
 PROG_NAME = 'RNAseq Pipeline'
 DESCRIPTION = 'Fastq files to RNAseq data analysis.'
@@ -60,8 +65,11 @@ if __name__ == '__main__':
   arg_parse = ArgumentParser(prog=PROG_NAME, description=DESCRIPTION,
                              epilog=epilog, prefix_chars='-', add_help=True)
   
-  arg_parse.add_argument('fastq_paths', nargs='+', metavar='FASTQ_FILES',
-                         help='File paths of FASTQ sequence read files (may contain wildcards) ') 
+#  arg_parse.add_argument('fastq_paths', nargs='+', metavar='FASTQ_FILES',
+#                         help='File paths of FASTQ sequence read files (may contain wildcards) ') 
+  
+  arg_parse.add_argument('samples_csv', metavar='SAMPLES_CSV',
+                         help='File path of a comma-separated file containing the samples names, the file path for read1, the file path for read2 and the experimental condition (e.g. Mutant or Wild-type). For single-ended experiments, please fill read2 slot with NA.') 
   
   arg_parse.add_argument('genome_fasta', metavar='GENOME_FASTA',
                          help='File path of genome sequence FASTA file (for use by genome aligner)') 
@@ -112,7 +120,8 @@ if __name__ == '__main__':
   
   args = vars(arg_parse.parse_args())
 
-  fastq_paths   = args['fastq_paths']
+  # fastq_paths   = args['fastq_paths']
+  samples_csv   = args['samples_csv']
   genome_fasta  = args['genome_fasta']
   genome_gtf    = args['genome_gtf']
   trim_galore   = args['trim_galore']
@@ -127,6 +136,17 @@ if __name__ == '__main__':
   # out_top_dir   = args['outdir']
   num_cpu       = args['cpu'] or None # May not be zero
   
+  
+  # Parse input comma separated file
+  
+  csv = readCsvFile(filename=samples_csv,separator='\t',header=False) # returns numpy array
+  
+  if is_single_end:
+    fastq_paths = list(csv[:,1])
+  else:
+    fastq_paths = list(csv[:,1]) + list(csv[:,2])
+  
+  print(fastq_paths)
   
   # Run Trim_galore followed by fastqc
   
@@ -246,21 +266,20 @@ if __name__ == '__main__':
           cmdArgs_pe = list(cmdArgs)
           cmdArgs_pe += [trimmed_fq_r1[i],trimmed_fq_r2[i]]
           util.call(cmdArgs_pe)
-            if mapq > 0 :
-          rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
-          os.remove('./Aligned.sortedByCoord.out.bam')
-            else:
-          os.rename('./Aligned.sortedByCoord.out.bam',bam)
+          if mapq > 0 :
+            rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
+            os.remove('./Aligned.sortedByCoord.out.bam')
+          else:
+            os.rename('./Aligned.sortedByCoord.out.bam',bam)
         
   
   # Generate Count matrix with HTSeq
-   
-  #bam = glob.glob('*sorted.out.bam')
   
-  print(bam_files)
+  rc_file_list = []
   
   for f in bam_files:
     rc_file = '%s_count_table.txt' % f
+    rc_file_list.append(rc_file)
     if exists_skip(rc_file):
       fileObj = open(rc_file,'wb')
       cmdArgs = ['htseq-count','--format=bam','--stranded=no']
@@ -268,6 +287,21 @@ if __name__ == '__main__':
       util.call(cmdArgs,stdout=fileObj)
       fileObj.close()
   
+  
+  # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
+  
+  N = csv.shape[0]
+  
+  csv_deseq = np.zeros((N,3))
+  csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
+                                               # It can have all the behaviours of python strings.
+  
+  csv_deseq[:,0] = csv[:,0]
+  csv_deseq[:,1] = np.array(rc_file_list)
+  csv_deseq[:,2] = csv[:,-1]
+  
+  csv_deseq_name = samples_csv + '_DESeq_table.txt'
+  np.savetxt(fname=csv_deseq_name,X=csv_deseq,delimiter='\t',fmt='%s')
   
   
   
