@@ -146,14 +146,13 @@ if __name__ == '__main__':
   else:
     fastq_paths = list(csv[:,1]) + list(csv[:,2])
   
-  print(fastq_paths)
-  
   # Run Trim_galore followed by fastqc
   
   fastq_paths2 = []
   fastq_paths3 = []
   
   for f in fastq_paths:
+    f = os.path.expanduser(f)
     f0 = f
     f=f.split(".")
     if f[-1] == 'gz':
@@ -184,7 +183,6 @@ if __name__ == '__main__':
     cmdArgs += fastq_paths2
     
     util.call(cmdArgs)
-  
   
   # Run Aligner
   
@@ -223,9 +221,9 @@ if __name__ == '__main__':
       
       for f in trimmed_fq:
         if mapq > 0 :
-          bam = './%s.sorted_fil_%d.out.bam' % (f,mapq)
+          bam = '%s.sorted_fil_%d.out.bam' % (f,mapq)
         else:
-          bam = './%s.sorted.out.bam' % f
+          bam = '%s.sorted.out.bam' % f
         
         bam_files.append(bam)
         if exists_skip(bam):
