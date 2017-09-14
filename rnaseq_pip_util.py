@@ -39,7 +39,7 @@ OTHER_ALIGNERS = [ALIGNER_HISAT2, ALIGNER_TOPHAT2]
 
 def exists_skip(filename):
   if os.path.exists(filename):
-    print('%s already exists and will not be overwritten. Skipping this file...\n' % filename)
+    print('%s already exists and will not be overwritten. Skipping this file...' % filename)
     return(False)
   else:
     return(True)
@@ -200,7 +200,7 @@ if __name__ == '__main__':
                  '--runThreadN',str(num_cpu)]
       util.call(cmdArgs)
     
-    print('Aligning reads using STAR...\n')
+    print('\nAligning reads using STAR...\n')
     
     cmdArgs = (ALIGNER_STAR,
                '--genomeDir',star_index,
@@ -288,19 +288,60 @@ if __name__ == '__main__':
   
   # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
   
-  N = csv.shape[0]
-  
-  csv_deseq = np.zeros((N,3))
-  csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
-                                               # It can have all the behaviours of python strings.
-  
-  csv_deseq[:,0] = csv[:,0]
-  csv_deseq[:,1] = np.array(rc_file_list)
-  csv_deseq[:,2] = csv[:,-1]
-  
   csv_deseq_name = samples_csv + '_DESeq_table.txt'
-  np.savetxt(fname=csv_deseq_name,X=csv_deseq,delimiter='\t',fmt='%s')
   
+  if exists_skip(csv_deseq_name):
+    
+    N = csv.shape[0]
+    
+    csv_deseq = np.zeros((N,3))
+    csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
+                                                 # It can have all the behaviours of python strings.
+    
+    csv_deseq[:,0] = csv[:,0]
+    csv_deseq[:,1] = np.array(rc_file_list)
+    csv_deseq[:,2] = csv[:,-1]
+    
+    np.savetxt(fname=csv_deseq_name,X=csv_deseq,delimiter='\t',fmt='%s')
+  
+  
+  # Gene Expression analysis using R
+  
+  exploratory_analysis_plots = samples_csv + '_sclust.pdf'
+  TPMs = samples_csv + '_tpm.txt'
+  DESeq_summary = samples_csv + '_DESEq_summary.txt'
+  DESeq_results = samples_csv + '_DESeq_results.txt'
+  
+  i=[]
+  
+  if exists_skip(exploratory_analysis_plots):
+    
+    i.append("ea")
+    
+  if exists_skip(TPMs):
+    
+    i.append("tpm")
+    
+  if exists_skip(DESeq_results):
+    
+    i.append("deseq")
+    
+  print(i)
+  print(len(i))
+  
+  if len(i) > 0:
+    i = "_".join(i)
+
+    DESeq_out_obj = open(DESeq_summary,"wb")
+    
+    cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i]
+    
+    util.call(cmdArgs,stdout=DESeq_out_obj)
+    
+    DESeq_out_obj.close()
+
+    
+    
   
   
   
