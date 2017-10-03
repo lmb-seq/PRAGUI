@@ -159,7 +159,7 @@ if __name__ == '__main__':
       f = f[:-2]
     else:
       f = f[:-1]
-    f = f = '.'.join(f)
+    f = '.'.join(f)
     trimmed_filename = f+'_trimmed.fq.gz'
     if exists_skip(trimmed_filename):
       fastq_paths2.append(f0)
@@ -172,6 +172,14 @@ if __name__ == '__main__':
     if trim_galore is not None:
       trim_galore = trim_galore.split(' ')
       cmdArgs += trim_galore
+    
+    if '-o' not in cmdArgs or '--output_dir' not in cmdArgs:
+       cmdArgs.append('-o')
+       od = f.split("/")
+       od = od[:-1]
+       od = '/'.join(od)
+       cmdArgs.append(od)
+    
     
     if skipfastqc is False:
       cmdArgs += ['-fastqc']
@@ -309,18 +317,18 @@ if __name__ == '__main__':
   
   exploratory_analysis_plots = samples_csv + '_sclust.pdf'
   TPMs = samples_csv + '_tpm.txt'
-  DESeq_summary = samples_csv + '_DESEq_summary.txt'
+  DESeq_summary = samples_csv + '_DESeq_summary.txt'
   DESeq_results = samples_csv + '_DESeq_results.txt'
   
   i=[]
   
-  if exists_skip(exploratory_analysis_plots):
-    
-    i.append("ea")
-    
-  if exists_skip(TPMs):
-    
-    i.append("tpm")
+  if exists_skip(exploratory_analysis_plots):  # Gene expression analysis has 3 steps.
+                                               # These do not need to be repeated if they have
+    i.append("ea")                             # already been run. Therefore, the script checks
+                                               # whether the output files have been generated
+  if exists_skip(TPMs):                        # and stores a specific flag each time that's the case.
+                                               # The following R script checks which flags have been
+    i.append("tpm")                            # stored and thus knows which steps to skip (if any).
     
   if exists_skip(DESeq_results):
     
