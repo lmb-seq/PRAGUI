@@ -65,17 +65,17 @@ if __name__ == '__main__':
   arg_parse = ArgumentParser(prog=PROG_NAME, description=DESCRIPTION,
                              epilog=epilog, prefix_chars='-', add_help=True)
   
-#  arg_parse.add_argument('fastq_paths', nargs='+', metavar='FASTQ_FILES',
-#                         help='File paths of FASTQ sequence read files (may contain wildcards) ') 
-  
   arg_parse.add_argument('samples_csv', metavar='SAMPLES_CSV',
                          help='File path of a comma-separated file containing the samples names, the file path for read1, the file path for read2 and the experimental condition (e.g. Mutant or Wild-type). For single-ended experiments, please fill read2 slot with NA.') 
   
   arg_parse.add_argument('genome_fasta', metavar='GENOME_FASTA',
                          help='File path of genome sequence FASTA file (for use by genome aligner)') 
   
-  arg_parse.add_argument('genome_gtf', metavar='GENE_ANNOTATIONS_GTF',
+  arg_parse.add_argument('genome_gtf', metavar='GENOME_ANNOTATIONS_GTF',
                          help='File path of gene annotations in gtf/gff format (for use by htseq-count)') 
+  
+  arg_parse.add_argument('-geneset_gtf', default=None,
+                         help='File path of gene annotations in gtf/gff format needed to compute TPMs. If this file is not provided, GENOME_ANNOTATIONS_GTF will be used.') 
   
   arg_parse.add_argument('-trim_galore', # metavar='TRIM_GALORE_OPTIONS',
                          default=None, 
@@ -110,7 +110,7 @@ if __name__ == '__main__':
                          help='Number of parallel CPU cores to use. Default: All available (%d)' % util.MAX_CORES) 
  
   arg_parse.add_argument('-pe', nargs=2, metavar='PAIRED_READ_TAGS', default=['r_1','r_2'],
-                         help='The subtrings/tags which are the only differences between paired FASTQ file paths. Default: r_1 r_2') 
+                        help='The subtrings/tags which are the only differences between paired FASTQ file paths. Default: r_1 r_2') 
   
   arg_parse.add_argument('-se', default=False, action='store_true',
                          help='Input reads are single-end data, otherwise defaults to paired-end.')
@@ -118,12 +118,15 @@ if __name__ == '__main__':
   arg_parse.add_argument('-stranded', default=False, action='store_true',
                          help='Input strand-specific protocol, otherwise defaults to non-strand-specific protocol.')
   
+  arg_parse.add_argument('-contrast', default='condition',
+                         help='Set column from SAMPLES_CVS file to be used as contrast by DESeq2 otherwise defaults to the third column')
+  
   args = vars(arg_parse.parse_args())
 
-  # fastq_paths   = args['fastq_paths']
   samples_csv   = args['samples_csv']
   genome_fasta  = args['genome_fasta']
   genome_gtf    = args['genome_gtf']
+  geneset_gtf   = args['geneset_gtf']
   trim_galore   = args['trim_galore']
   skipfastqc    = args['skipfastqc']
   fastqc_args   = args['fastqc_args']
@@ -131,55 +134,98 @@ if __name__ == '__main__':
   star_index    = args['star_index']
   mapq          = args['mapq']
   barcode_csv   = args['barcode_csv']
+  num_cpu       = args['cpu'] or None # May not be zero
   pair_tags     = args['pe']
   is_single_end = args['se']
+  stranded      = args['stranded']
+  contrast      = args['contrast']
   # out_top_dir   = args['outdir']
-  num_cpu       = args['cpu'] or None # May not be zero
+  
+  if geneset_gtf is None:
+    geneset_gtf = genome_gtf
   
   
   # Parse input comma separated file
   
-  csv = readCsvFile(filename=samples_csv,separator='\t',header=False) # returns numpy array
+  csvfile = open(samples_csv,'r')                  # Get header from csv file and build new header for
+  header = csvfile.readline()                       # input table needed for analysis in R.
+  csvfile.close()
+  header = header.split()
+  header = ['samplename','filename'] + header[3:]
+  #header = "\t".join(header)
+  header = np.array(header)
+  
+  csv = readCsvFile(filename=samples_csv,separator='\t',header=True) # returns numpy array
+  
+  cmdArgs = ['trim_galore','--gzip']
+  
+  fastq_paths2 = []
+  trimmed_fq = []
   
   if is_single_end:
+    print('User specified input data to be single-end... Running single-end mode...\n')
     fastq_paths = list(csv[:,1])
+    
+    for f in fastq_paths:
+      f = os.path.expanduser(f)
+      f0 = f
+      f=f.split(".")
+      if f[-1] == 'gz':
+        f = f[:-2]
+      else:
+        f = f[:-1]
+      f = '.'.join(f)
+      trimmed_filename = f+'_trimmed.fq.gz'
+      if exists_skip(trimmed_filename):
+        fastq_paths2.append(f0)
+      trimmed_fq.append(trimmed_filename)
+    
   else:
-    fastq_paths = list(csv[:,1]) + list(csv[:,2])
+    print('User specified input data to be paired-end... Running paired-end mode with tags %s and %s...\n' % (pair_tags[0],pair_tags[1]) )
+    cmdArgs.append('--paired')
+    
+    fastq_paths = []
+    R = csv.shape[0]
+    
+    for i in range(R):
+      for j in [1,2]:
+        fastq_paths.append(csv[i,j])
+      
+    for f in fastq_paths:
+      f = os.path.expanduser(f)
+      f0 = f
+      f=f.split(".")
+      if f[-1] == 'gz':
+        f = f[:-2]
+      else:
+        f = f[:-1]
+      f = '.'.join(f)
+      if pair_tags[0] in f:
+        trimmed_filename = f+'_val_1.fq.gz'
+      elif pair_tags[1] in f:
+        trimmed_filename = f+'_val_2.fq.gz'
+      else:
+        sys.exit('ERROR: Paired read tag not found... Exiting...\n')
+      
+      if exists_skip(trimmed_filename):
+        fastq_paths2.append(f0)
+      #fastq_paths3.append(f)
+      trimmed_fq.append(trimmed_filename)
   
   # Run Trim_galore followed by fastqc
   
-  fastq_paths2 = []
-  fastq_paths3 = []
-  
-  for f in fastq_paths:
-    f = os.path.expanduser(f)
-    f0 = f
-    f=f.split(".")
-    if f[-1] == 'gz':
-      f = f[:-2]
-    else:
-      f = f[:-1]
-    f = '.'.join(f)
-    trimmed_filename = f+'_trimmed.fq.gz'
-    if exists_skip(trimmed_filename):
-      fastq_paths2.append(f0)
-    fastq_paths3.append(f)
-  
-  
   if fastq_paths2 != []:
-    cmdArgs = ['trim_galore','--gzip']
     
     if trim_galore is not None:
       trim_galore = trim_galore.split(' ')
       cmdArgs += trim_galore
-    
+
     if '-o' not in cmdArgs or '--output_dir' not in cmdArgs:
        cmdArgs.append('-o')
        od = f.split("/")
        od = od[:-1]
        od = '/'.join(od)
        cmdArgs.append(od)
-    
     
     if skipfastqc is False:
       cmdArgs += ['-fastqc']
@@ -217,7 +263,10 @@ if __name__ == '__main__':
                '--outSAMtype','BAM','SortedByCoordinate',
                '--readFilesIn')
     
-    trimmed_fq = [append_to_file_name(x,'_trimmed.fq.gz') for x in fastq_paths3]
+    print(trimmed_fq)
+    
+    #trimmed_fq = [append_to_file_name(x,'_trimmed.fq.gz') for x in fastq_paths3]
+    
     bam_files = []
     
     if is_single_end:
@@ -248,29 +297,23 @@ if __name__ == '__main__':
       
       print("Running paired-end mode...\n")
       
-      trimmed_fq_r1 = '*%s*trimmed.fq.gz' % pair_tags[0]
-      trimmed_fq_r1 = list(filter(lambda x:trimmed_fq_r1 in x, trimmed_fq)) # grep for python3
-      #trimmed_fq_r1 = glob.glob(trimmed_fq_r1)
-      
-      trimmed_fq_r2 = '*%s*trimmed.fq.gz' % pair_tags[1]
-      trimmed_fq_r2 = list(filter(lambda x:trimmed_fq_r2 in x, trimmed_fq)) # grep for python3
-      #trimmed_fq_r2 = glob.glob(trimmed_fq_r2)
+      trimmed_fq_r1 = list(filter(lambda x:pair_tags[0] in x, trimmed_fq)) # grep for python3
+      trimmed_fq_r2 = list(filter(lambda x:pair_tags[1] in x, trimmed_fq))
       
       if len(trimmed_fq_r1) != len(trimmed_fq_r2):
         sys.exit('ERROR: Number of fq files differs for read1 and read2... Exiting...\n')
       
-
       for i in range(0,len(trimmed_fq_r1)):
         if mapq > 0 :
-          bam = './%s.pe.sorted_fil_%d.out.bam' % (trimmed_fq_r1[i],mapq)
+          bam = '%s.pe.sorted_fil_%d.out.bam' % (trimmed_fq_r1[i],mapq)
         else:
-          bam = './%s.pe.sorted.out.bam' % trimmed_fq_r1[i]
+          bam = '%s.pe.sorted.out.bam' % trimmed_fq_r1[i]
         
-        
-        bam_files = bam_files.append(bam)
+        bam_files.append(bam)
         if exists_skip(bam):
           cmdArgs_pe = list(cmdArgs)
           cmdArgs_pe += [trimmed_fq_r1[i],trimmed_fq_r2[i]]
+          print(" ".join(cmdArgs_pe))
           util.call(cmdArgs_pe)
           if mapq > 0 :
             rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
@@ -300,17 +343,27 @@ if __name__ == '__main__':
   
   if exists_skip(csv_deseq_name):
     
-    N = csv.shape[0]
+    M = csv.shape[0]
+    N = csv.shape[1] - 1
     
-    csv_deseq = np.zeros((N,3))
+    #csv_deseq = np.zeros((M,3))
+    csv_deseq = np.zeros((M,N))
     csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
                                                  # It can have all the behaviours of python strings.
     
     csv_deseq[:,0] = csv[:,0]
     csv_deseq[:,1] = np.array(rc_file_list)
-    csv_deseq[:,2] = csv[:,-1]
+    #csv_deseq[:,2] = csv[:,-1]
+    csv_deseq[:,2:] = csv[:,3:]
     
-    np.savetxt(fname=csv_deseq_name,X=csv_deseq,delimiter='\t',fmt='%s')
+    csv_deseq_wh = np.zeros((M+1,N))
+    csv_deseq_wh = np.array(csv_deseq_wh,dtype=object)
+    csv_deseq_wh[0,:] = header
+    csv_deseq_wh[1:,:] = csv_deseq
+    
+    print(csv_deseq_wh)
+    
+    np.savetxt(fname=csv_deseq_name,X=csv_deseq_wh,delimiter='\t',fmt='%s')
   
   
   # Gene Expression analysis using R
@@ -334,15 +387,13 @@ if __name__ == '__main__':
     
     i.append("deseq")
     
-  print(i)
-  print(len(i))
   
   if len(i) > 0:
     i = "_".join(i)
 
     DESeq_out_obj = open(DESeq_summary,"wb")
     
-    cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i]
+    cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast]
     
     util.call(cmdArgs,stdout=DESeq_out_obj)
     
