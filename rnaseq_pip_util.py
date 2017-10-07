@@ -265,16 +265,11 @@ if __name__ == '__main__':
     
     print(trimmed_fq)
     
-    #trimmed_fq = [append_to_file_name(x,'_trimmed.fq.gz') for x in fastq_paths3]
-    
     bam_files = []
     
     if is_single_end:
       
       print("Running single-end mode...\n")
-      
-      #trimmed_fq = glob.glob('*trimmed.fq.gz')
-      #trimmed_fq = ','.join(trimmed_fq)
       
       for f in trimmed_fq:
         if mapq > 0 :
@@ -339,21 +334,27 @@ if __name__ == '__main__':
   
   # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
   
-  csv_deseq_name = samples_csv + '_DESeq_table.txt'
+  deseq_dir = rc_file_list[0].split('/')
+  deseq_dir = deseq_dir[:-1]
+  deseq_dir = '/'.join(deseq_dir) + '/'
+  
+  deseq_head = samples_csv.split('/')
+  deseq_head = deseq_head[-1]
+  deseq_head = deseq_dir + deseq_head
+  
+  csv_deseq_name = append_to_file_name(deseq_head,'_DESeq_table.txt')
   
   if exists_skip(csv_deseq_name):
     
     M = csv.shape[0]
     N = csv.shape[1] - 1
     
-    #csv_deseq = np.zeros((M,3))
     csv_deseq = np.zeros((M,N))
     csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
                                                  # It can have all the behaviours of python strings.
     
     csv_deseq[:,0] = csv[:,0]
     csv_deseq[:,1] = np.array(rc_file_list)
-    #csv_deseq[:,2] = csv[:,-1]
     csv_deseq[:,2:] = csv[:,3:]
     
     csv_deseq_wh = np.zeros((M+1,N))
@@ -361,17 +362,15 @@ if __name__ == '__main__':
     csv_deseq_wh[0,:] = header
     csv_deseq_wh[1:,:] = csv_deseq
     
-    print(csv_deseq_wh)
-    
     np.savetxt(fname=csv_deseq_name,X=csv_deseq_wh,delimiter='\t',fmt='%s')
   
   
   # Gene Expression analysis using R
   
-  exploratory_analysis_plots = samples_csv + '_sclust.pdf'
-  TPMs = samples_csv + '_tpm.txt'
-  DESeq_summary = samples_csv + '_DESeq_summary.txt'
-  DESeq_results = samples_csv + '_DESeq_results.txt'
+  exploratory_analysis_plots = append_to_file_name(deseq_head, '_sclust.pdf')
+  TPMs = append_to_file_name(deseq_head,'_tpm.txt')
+  DESeq_summary = append_to_file_name(deseq_head,'_DESeq_summary.txt')
+  DESeq_results = append_to_file_name(deseq_head,'_DESeq_results.txt')
   
   i=[]
   
@@ -390,14 +389,15 @@ if __name__ == '__main__':
   
   if len(i) > 0:
     i = "_".join(i)
-
-    DESeq_out_obj = open(DESeq_summary,"wb")
     
     cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast]
     
-    util.call(cmdArgs,stdout=DESeq_out_obj)
-    
-    DESeq_out_obj.close()
+    if "deseq" in i:
+      DESeq_out_obj = open(DESeq_summary,"wb")
+      util.call(cmdArgs,stdout=DESeq_out_obj)
+      DESeq_out_obj.close()
+    else:
+      util.call(cmdArgs)
 
     
     
