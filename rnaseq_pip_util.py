@@ -119,7 +119,11 @@ if __name__ == '__main__':
                          help='Input strand-specific protocol, otherwise defaults to non-strand-specific protocol.')
   
   arg_parse.add_argument('-contrast', default='condition',
-                         help='Set column from SAMPLES_CVS file to be used as contrast by DESeq2 otherwise defaults to the third column')
+                         help='Set column from SAMPLES_CSV file to be used as contrast by DESeq2 otherwise defaults to the third column')
+  
+  arg_parse.add_argument('-contrast_levels', nargs=2, default=None,
+                         help='Set comparisons for DESeq2. By default, DESeq2 compare last level over the first level from the CONTRAST column.')
+
   
   args = vars(arg_parse.parse_args())
 
@@ -139,6 +143,7 @@ if __name__ == '__main__':
   is_single_end = args['se']
   stranded      = args['stranded']
   contrast      = args['contrast']
+  levels        = args['contrast_levels']
   # out_top_dir   = args['outdir']
   
   if geneset_gtf is None:
@@ -390,7 +395,10 @@ if __name__ == '__main__':
   if len(i) > 0:
     i = "_".join(i)
     
-    cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast]
+    if levels is None:
+      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast]
+    else:
+      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast] + levels
     
     if "deseq" in i:
       DESeq_out_obj = open(DESeq_summary,"wb")
