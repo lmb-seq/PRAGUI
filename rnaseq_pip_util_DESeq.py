@@ -70,12 +70,9 @@ if __name__ == '__main__':
   
   arg_parse.add_argument('genome_fasta', metavar='GENOME_FASTA',
                          help='File path of genome sequence FASTA file (for use by genome aligner)') 
-
-  arg_parse.add_argument('analysis_type', metavar='ANALYSIS_TYPE',default=['DESeq','Cufflinks'][1]
-                         help='Specify whether to perform analysis using DESeq2 or Cufflinks. Default is set to DESeq2') 
   
-  arg_parse.add_argument('-genome_gtf', metavar='GENOME_ANNOTATIONS_GTF', default=None,
-                         help='File path of gene annotations in gtf/gff format (for use by htseq-count). This file is only required when performing an analysis using DESeq2.') 
+  arg_parse.add_argument('genome_gtf', metavar='GENOME_ANNOTATIONS_GTF',
+                         help='File path of gene annotations in gtf/gff format (for use by htseq-count)') 
   
   arg_parse.add_argument('-geneset_gtf', default=None,
                          help='File path of gene annotations in gtf/gff format needed to compute TPMs. If this file is not provided, GENOME_ANNOTATIONS_GTF will be used.') 
@@ -131,7 +128,6 @@ if __name__ == '__main__':
   args = vars(arg_parse.parse_args())
 
   samples_csv   = args['samples_csv']
-  analysis_type = args['analysis_type']
   genome_fasta  = args['genome_fasta']
   genome_gtf    = args['genome_gtf']
   geneset_gtf   = args['geneset_gtf']
@@ -149,15 +145,6 @@ if __name__ == '__main__':
   contrast      = args['contrast']
   levels        = args['contrast_levels']
   # out_top_dir   = args['outdir']
-  
-  if analysis_type is 'DESeq':
-    print('Differential gene expression analysis using DESeq2...')
-    if genome_gtf is None:
-      sys.exit('ERROR: Expecting file with gene annotations in gtf/gff format. Please provide full file path using the "-genome_gtf" option...')
-  elif analysis_type is 'Cufflinks':
-    print('Analysis of transcript expression using Cufflinks...')
-  else:
-    sys.exit('ERROR: Expecting ANALYSIS_TYPE to be either DESeq2 or Cufflinks...')
   
   if geneset_gtf is None:
     geneset_gtf = genome_gtf
@@ -335,107 +322,91 @@ if __name__ == '__main__':
             os.rename('./Aligned.sortedByCoord.out.bam',bam)
         
   
-  #########################
-  ## Analysis with DESeq2##
-  #########################
+  # Generate Count matrix with HTSeq
   
-  if analysis_type is 'DESeq':
+  rc_file_list = []
+  
+  for f in bam_files:
+    rc_file = '%s_count_table.txt' % f
+    rc_file_list.append(rc_file)
+    if exists_skip(rc_file):
+      fileObj = open(rc_file,'wb')
+      cmdArgs = ['htseq-count','--format=bam','--stranded=no']
+      cmdArgs += [f,genome_gtf]
+      util.call(cmdArgs,stdout=fileObj)
+      fileObj.close()
+  
+  
+  # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
+  
+  deseq_dir = rc_file_list[0].split('/')
+  deseq_dir = deseq_dir[:-1]
+  deseq_dir = '/'.join(deseq_dir) + '/'
+  
+  deseq_head = samples_csv.split('/')
+  deseq_head = deseq_head[-1]
+  deseq_head = deseq_dir + deseq_head
+  
+  csv_deseq_name = append_to_file_name(deseq_head,'_DESeq_table.txt')
+  
+  if exists_skip(csv_deseq_name):
+    
+    M = csv.shape[0]
+    N = csv.shape[1] - 1
+    
+    csv_deseq = np.zeros((M,N))
+    csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
+                                                 # It can have all the behaviours of python strings.
+    
+    csv_deseq[:,0] = csv[:,0]
+    csv_deseq[:,1] = np.array(rc_file_list)
+    csv_deseq[:,2:] = csv[:,3:]
+    
+    csv_deseq_wh = np.zeros((M+1,N))
+    csv_deseq_wh = np.array(csv_deseq_wh,dtype=object)
+    csv_deseq_wh[0,:] = header
+    csv_deseq_wh[1:,:] = csv_deseq
+    
+    np.savetxt(fname=csv_deseq_name,X=csv_deseq_wh,delimiter='\t',fmt='%s')
+  
+  
+  # Gene Expression analysis using R
+  
+  exploratory_analysis_plots = append_to_file_name(deseq_head, '_sclust.pdf')
+  TPMs = append_to_file_name(deseq_head,'_tpm.txt')
+  DESeq_summary = append_to_file_name(deseq_head,'_DESeq_summary.txt')
+  DESeq_results = append_to_file_name(deseq_head,'_DESeq_results.txt')
+  
+  i=[]
+  
+  if exists_skip(exploratory_analysis_plots):  # Gene expression analysis has 3 steps.
+                                               # These do not need to be repeated if they have
+    i.append("ea")                             # already been run. Therefore, the script checks
+                                               # whether the output files have been generated
+  if exists_skip(TPMs):                        # and stores a specific flag each time that's the case.
+                                               # The following R script checks which flags have been
+    i.append("tpm")                            # stored and thus knows which steps to skip (if any).
+    
+  if exists_skip(DESeq_results):
+    
+    i.append("deseq")
+    
+  
+  if len(i) > 0:
+    i = "_".join(i)
+    
+    if levels is None:
+      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast]
+    else:
+      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast] + levels
+    
+    if "deseq" in i:
+      DESeq_out_obj = open(DESeq_summary,"wb")
+      util.call(cmdArgs,stdout=DESeq_out_obj)
+      DESeq_out_obj.close()
+    else:
+      util.call(cmdArgs)
 
-    # Generate Count matrix with HTSeq
-    
-    rc_file_list = []
-    
-    for f in bam_files:
-      rc_file = '%s_count_table.txt' % f
-      rc_file_list.append(rc_file)
-      if exists_skip(rc_file):
-        fileObj = open(rc_file,'wb')
-        cmdArgs = ['htseq-count','--format=bam','--stranded=no']
-        cmdArgs += [f,genome_gtf]
-        util.call(cmdArgs,stdout=fileObj)
-        fileObj.close()
-    
-    
-    # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
-    
-    deseq_dir = rc_file_list[0].split('/')
-    deseq_dir = deseq_dir[:-1]
-    deseq_dir = '/'.join(deseq_dir) + '/'
-    
-    deseq_head = samples_csv.split('/')
-    deseq_head = deseq_head[-1]
-    deseq_head = deseq_dir + deseq_head
-    
-    csv_deseq_name = append_to_file_name(deseq_head,'_DESeq_table.txt')
-    
-    if exists_skip(csv_deseq_name):
-      
-      M = csv.shape[0]
-      N = csv.shape[1] - 1
-      
-      csv_deseq = np.zeros((M,N))
-      csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
-                                                   # It can have all the behaviours of python strings.
-      
-      csv_deseq[:,0] = csv[:,0]
-      csv_deseq[:,1] = np.array(rc_file_list)
-      csv_deseq[:,2:] = csv[:,3:]
-      
-      csv_deseq_wh = np.zeros((M+1,N))
-      csv_deseq_wh = np.array(csv_deseq_wh,dtype=object)
-      csv_deseq_wh[0,:] = header
-      csv_deseq_wh[1:,:] = csv_deseq
-      
-      np.savetxt(fname=csv_deseq_name,X=csv_deseq_wh,delimiter='\t',fmt='%s')
-    
-    
-    # Gene Expression analysis using R
-    
-    exploratory_analysis_plots = append_to_file_name(deseq_head, '_sclust.pdf')
-    TPMs = append_to_file_name(deseq_head,'_tpm.txt')
-    DESeq_summary = append_to_file_name(deseq_head,'_DESeq_summary.txt')
-    DESeq_results = append_to_file_name(deseq_head,'_DESeq_results.txt')
-    
-    i=[]
-    
-    if exists_skip(exploratory_analysis_plots):  # Gene expression analysis has 3 steps.
-                                                 # These do not need to be repeated if they have
-      i.append("ea")                             # already been run. Therefore, the script checks
-                                                 # whether the output files have been generated
-    if exists_skip(TPMs):                        # and stores a specific flag each time that's the case.
-                                                 # The following R script checks which flags have been
-      i.append("tpm")                            # stored and thus knows which steps to skip (if any).
-      
-    if exists_skip(DESeq_results):
-      
-      i.append("deseq")
-      
-    
-    if len(i) > 0:
-      i = "_".join(i)
-      
-      if levels is None:
-        cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast]
-      else:
-        cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast] + levels
-      
-      if "deseq" in i:
-        DESeq_out_obj = open(DESeq_summary,"wb")
-        util.call(cmdArgs,stdout=DESeq_out_obj)
-        DESeq_out_obj.close()
-      else:
-        util.call(cmdArgs)
-  
-  
-  #############################
-  ## Analysis with Cufflinks ##
-  #############################
-  
-  if analysis_type is 'Cufflinks':
-  
-    # Index bam files using samtools
-    
-    # Run Cufflinks
     
     
   
