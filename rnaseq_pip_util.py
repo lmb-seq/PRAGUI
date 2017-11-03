@@ -71,8 +71,8 @@ if __name__ == '__main__':
   arg_parse.add_argument('genome_fasta', metavar='GENOME_FASTA',
                          help='File path of genome sequence FASTA file (for use by genome aligner)') 
 
-  arg_parse.add_argument('analysis_type', metavar='ANALYSIS_TYPE',default=['DESeq','Cufflinks'][1]
-                         help='Specify whether to perform analysis using DESeq2 or Cufflinks. Default is set to DESeq2') 
+  arg_parse.add_argument('-analysis_type', metavar='ANALYSIS_TYPE',default=['DESeq','Cufflinks'][1],
+                         help='Specify whether to perform analysis using DESeq2 or Cufflinks. Default is set to DESeq2.') 
   
   arg_parse.add_argument('-genome_gtf', metavar='GENOME_ANNOTATIONS_GTF', default=None,
                          help='File path of gene annotations in gtf/gff format (for use by htseq-count). This file is only required when performing an analysis using DESeq2.') 
@@ -82,7 +82,7 @@ if __name__ == '__main__':
   
   arg_parse.add_argument('-trim_galore', # metavar='TRIM_GALORE_OPTIONS',
                          default=None, 
-                         help='options to be provided to trim_galore. They should be provided under quotes. If not provided, trim_galore will run with developer\'s default options.')
+                        help='options to be provided to trim_galore. They should be provided under quotes. If not provided, trim_galore will run with developer\'s default options.')
   
   arg_parse.add_argument('-fastqc_args', metavar='FASTQC', 
                          default=None,
@@ -127,12 +127,16 @@ if __name__ == '__main__':
   arg_parse.add_argument('-contrast_levels', nargs=2, default=None,
                          help='Set comparisons for DESeq2. By default, DESeq2 compare last level over the first level from the CONTRAST column.')
 
-  
+  arg_parse.add_argument('-cuff_opt', default=None,
+                         help='options to be provided to cufflinks. They should be provided under quotes. If not provided, cufflinks will run with developer\'s default options.')
+
+  arg_parse.add_argument('-cuff_gtf', default=False, action='store_true',
+                         help='Set "-g" option from cufflinks and use file specified in "-geneset_gtf" option. This option should not be set if "-cuff_gtf" already incorporates a gtf file to be used.')
   args = vars(arg_parse.parse_args())
 
   samples_csv   = args['samples_csv']
-  analysis_type = args['analysis_type']
   genome_fasta  = args['genome_fasta']
+  analysis_type = args['analysis_type']
   genome_gtf    = args['genome_gtf']
   geneset_gtf   = args['geneset_gtf']
   trim_galore   = args['trim_galore']
@@ -148,15 +152,18 @@ if __name__ == '__main__':
   stranded      = args['stranded']
   contrast      = args['contrast']
   levels        = args['contrast_levels']
+  cuff_opt = args['cuff_opt']
+  cuff_gtf = args['cuff_gtf']
   # out_top_dir   = args['outdir']
-  
-  if analysis_type is 'DESeq':
+
+  if analysis_type == 'DESeq':
     print('Differential gene expression analysis using DESeq2...')
     if genome_gtf is None:
       sys.exit('ERROR: Expecting file with gene annotations in gtf/gff format. Please provide full file path using the "-genome_gtf" option...')
-  elif analysis_type is 'Cufflinks':
+  elif analysis_type == 'Cufflinks':
     print('Analysis of transcript expression using Cufflinks...')
   else:
+    print(analysis_type)
     sys.exit('ERROR: Expecting ANALYSIS_TYPE to be either DESeq2 or Cufflinks...')
   
   if geneset_gtf is None:
@@ -431,14 +438,111 @@ if __name__ == '__main__':
   ## Analysis with Cufflinks ##
   #############################
   
-  if analysis_type is 'Cufflinks':
-  
+  if analysis_type == 'Cufflinks':
+    print('Running Cufflinks...\n')
+    
+    out_folder = './'
+    library_type = None
+    
+    # Get cufflinks options
+    if cuff_opt is not None:
+      cuff_opt = cuff_opt.split(' ')
+      # Get output folder if specified as argument
+      if '-o' in cuff_opt:
+        ind = cuff_opt.index('-o') + 1
+        out_folder = cuff_opt[ind] +'/'
+      if '--library-type' in cuff_opt:
+        ind2 = cuff_opt.index('--library-type') + 1
+        library_type = ['--library-type',cuff_opt[ind2]]
+      
+        
+    assemblies = out_folder + 'assembly_GTF_list.txt'    
+    fileObj_assemblies = open(assemblies,'a')
+    
     # Index bam files using samtools
+    for f in bam_files:
+      fi = f + '.bai'
+      if exists_skip(fi):
+        print('Indexing file %s...\n' % f)
+        cmdArgs = ['samtools','index',f]
+        util.call(cmdArgs)
+      
+    # Run Cufflinks command 
+      cuff_files = ['genes.fpkm_tracking', 'isoforms.fpkm_tracking', 'skipped.gtf', 'transcripts.gtf']
+      f2 = f.split('/')[-1]
+      f_transcripts = out_folder + f2 + '_' + cuff_files[3]
+      fileObj_assemblies.write(f_transcripts + '\n')
+      
+      if exists_skip(f_transcripts):
+        cmdArgs = ['cufflinks']
+        if cuff_opt is not None:
+          cmdArgs += cuff_opt
+        else:
+          print('WARNING: No options were specified for Cufflinks. Developer\'s default options will be used...\n')
+        is_gtf_specified = '-g' in cmdArgs or '–GTF-guide' in cmdArgs
+        if cuff_gtf is True:
+          if not is_gtf_specified:
+            cmdArgs.append('-g')
+            cmdArgs.append(geneset_gtf)
+          else:
+             sys.exit('ERROR: option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...\n')
+        cmdArgs.append(f)
+        util.call(cmdArgs)
+        # Rename output files 
+        for i in range(4):
+          ofc = out_folder + cuff_files[i]
+          nn = out_folder + f + '_' + cuff_files[i]
+          os.rename(ofc, nn)
+        
+    fileObj_assemblies.close()
     
-    # Run Cufflinks
+    # Run Cuffmerge
+    
+    cuff_head = samples_csv.split('/')[-1]
+    ofc2 = out_folder + cuff_head + '_cuffmerge.gtf'
+    
+    if exists_skip(ofc2):
+      cmdArgs = ['cuffmerge', '-s',genome_fasta,
+                 '-p',str(num_cpu),
+                 '-o',out_folder,
+                 assemblies]
+      util.call(cmdArgs)
+      os.rename(out_folder + 'merged.gtf', ofc2)
+      
+    # Run Cuffquant
+    
+    cxb_list=[]
+    
+    basic_options = ['-u',
+                     '-b', genome_fasta,
+                     '-p', str(num_cpu),
+                     '-o', out_folder]
+    if library_type is not None:
+      basic_options += library_type
+    
+    for f in bam_files:
+      f2 = f.split('/')[-1]
+      ofc3 = out_folder + f2 + '_abundances.cxb'
+      cxb_list.append(ofc3)
+      
+      if exists_skip(ofc3):
+        cmdArgs = ['cuffquant'] + basic_options + [ofc2,f]
+        util.call(cmdArgs)
+        os.rename(out_folder + 'abundances.cxb', ofc3)
+        
+    # Run Cuffdiff
+    
+    cmdArgs = ['cuffdiff'] + basic_options
+    cmdArgs.append(ofc2)
+    cmdArgs += cxb_list
+    util.call(cmdArgs)
+    
+    # Run Cuffnorm
+
+    cmdArgs = ['cuffnorm'] + basic_options
+    cmdArgs.append(ofc2)
+    cmdArgs += cxb_list
+    util.call(cmdArgs)
     
     
-  
-  
-  
-  
+       
