@@ -454,6 +454,14 @@ if __name__ == '__main__':
       if '--library-type' in cuff_opt:
         ind2 = cuff_opt.index('--library-type') + 1
         library_type = ['--library-type',cuff_opt[ind2]]
+      is_gtf_specified = '-g' in cuff_opt or '–GTF-guide' in cuff_opt
+      if '-g' in cuff_opt:
+        ind3 = cuff_opt.index('-g')+1
+        cuff_gtf_file = ['-g',cuff_opt[ind3]]
+      if '-GTF-guide' in cuff_opt:
+        ind3 = cuff_opt.index('-GTF-guide')+1
+        cuff_gtf_file = ['-g',cuff_opt[ind3]]
+          
       
         
     assemblies = out_folder + 'assembly_GTF_list.txt'    
@@ -479,7 +487,6 @@ if __name__ == '__main__':
           cmdArgs += cuff_opt
         else:
           print('WARNING: No options were specified for Cufflinks. Developer\'s default options will be used...\n')
-        is_gtf_specified = '-g' in cmdArgs or '–GTF-guide' in cmdArgs
         if cuff_gtf is True:
           if not is_gtf_specified:
             cmdArgs.append('-g')
@@ -502,10 +509,19 @@ if __name__ == '__main__':
     ofc2 = out_folder + cuff_head + '_cuffmerge.gtf'
     
     if exists_skip(ofc2):
+      err = 0
       cmdArgs = ['cuffmerge', '-s',genome_fasta,
                  '-p',str(num_cpu),
-                 '-o',out_folder,
-                 assemblies]
+                 '-o',out_folder]
+      if is_gtf_specified:
+        cmdArgs += cuff_gtf_file
+        err = 1
+      elif cuff_gtf is True:
+        if err is 1:
+          sys.exit('ERROR: option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...\n')
+        cmdArgs.append('-g')
+        cmdArgs.append(geneset_gtf)
+      cmdArgs.append(assemblies)
       util.call(cmdArgs)
       os.rename(out_folder + 'merged.gtf', ofc2)
       
@@ -539,7 +555,7 @@ if __name__ == '__main__':
     
     # Run Cuffnorm
 
-    cmdArgs = ['cuffnorm'] + basic_options
+    cmdArgs = ['cuffnorm'] + basic_options[3:]
     cmdArgs.append(ofc2)
     cmdArgs += cxb_list
     util.call(cmdArgs)
