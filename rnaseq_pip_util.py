@@ -18,7 +18,7 @@ from readCsvFile import readCsvFile
 
 
 PROG_NAME = 'RNAseq Pipeline'
-DESCRIPTION = 'Fastq files to RNAseq data analysis.'
+DESCRIPTION = 'Process fastq files to RNAseq data analysis.'
 
 QUIET   = False
 LOGGING = False
@@ -39,7 +39,7 @@ OTHER_ALIGNERS = [ALIGNER_HISAT2, ALIGNER_TOPHAT2]
 
 def exists_skip(filename):
   if os.path.exists(filename):
-    print('%s already exists and will not be overwritten. Skipping this file...' % filename)
+    print('%s already exists and will not be overwritten. Skipping this folder/file...' % filename)
     return(False)
   else:
     return(True)
@@ -54,6 +54,13 @@ def rm_low_mapq(in_file,out_file_name,mapq):
   out_file = open(out_file_name,'wb')
   util.call(cmdArgs,stdout=out_file)
   out_file.close()
+  
+def new_dir(new_dir):
+  if not exists_skip(new_dir):
+    new_dir = util.get_temp_path(new_dir)
+    print('Output from Cuffdiff will be saved in %s' % new_dir)
+  os.makedirs(new_dir,exist_ok = True,mode = 0o666)
+  return(new_dir)
 
 if __name__ == '__main__':
 
@@ -66,12 +73,12 @@ if __name__ == '__main__':
                              epilog=epilog, prefix_chars='-', add_help=True)
   
   arg_parse.add_argument('samples_csv', metavar='SAMPLES_CSV',
-                         help='File path of a comma-separated file containing the samples names, the file path for read1, the file path for read2 and the experimental condition (e.g. Mutant or Wild-type). For single-ended experiments, please fill read2 slot with NA.') 
+                         help='File path of a tab-separated file containing the samples names, the file path for read1, the file path for read2, the experimental condition (e.g. Mutant or Wild-type) and any other information to be used as contrasts for differential expression calling. For single-ended experiments, please fill read2 slot with NA.') 
   
   arg_parse.add_argument('genome_fasta', metavar='GENOME_FASTA',
                          help='File path of genome sequence FASTA file (for use by genome aligner)') 
 
-  arg_parse.add_argument('-analysis_type', metavar='ANALYSIS_TYPE',default=['DESeq','Cufflinks'][1],
+  arg_parse.add_argument('-analysis_type', metavar='ANALYSIS_TYPE',default=['DESeq','Cufflinks'][0],
                          help='Specify whether to perform analysis using DESeq2 or Cufflinks. Default is set to DESeq2.') 
   
   arg_parse.add_argument('-genome_gtf', metavar='GENOME_ANNOTATIONS_GTF', default=None,
@@ -176,6 +183,7 @@ if __name__ == '__main__':
   header = csvfile.readline()                       # input table needed for analysis in R.
   csvfile.close()
   header = header.split()
+  header2 = header
   header = ['samplename','filename'] + header[3:]
   #header = "\t".join(header)
   header = np.array(header)
@@ -186,24 +194,54 @@ if __name__ == '__main__':
   
   fastq_paths2 = []
   trimmed_fq = []
+  fastq_dirs  = []
+  
+  if trim_galore is not None:
+    trim_galore = trim_galore.split(' ')
+    cmdArgs += trim_galore
+  
+  # Output from trim_galore will be saved in a new folder './trim_galore' 
+  # if not otherwise specified in the command line
+  if '-o' in cmdArgs:
+    ind = cmdArgs.index('-o') + 1
+    od  = cmdArgs[ind]  
+  elif '--output_dir' in cmdArgs:
+    ind = cmdArgs.index('--output_dir') + 1
+    od  = cmdArgs[ind]    
+  else:
+    cmdArgs.append('-o')
+    if exists_skip('./trim_galore'):
+      os.makedirs('./trim_galore',exist_ok = True,mode = 0o666)
+    od = './trim_galore'
+    cmdArgs.append(od)
+  
+  if skipfastqc is False:
+    cmdArgs += ['-fastqc']
+    if fastqc_args is not None:
+      cmdArgs += ['-fastqc_args',fastqc_args]
+  else:
+    print('Skipping fastqc step...\n')
+  
   
   if is_single_end:
     print('User specified input data to be single-end... Running single-end mode...\n')
     fastq_paths = list(csv[:,1])
     
     for f in fastq_paths:
-      f = os.path.expanduser(f)
-      f0 = f
+      f0 = os.path.expanduser(f)
+      d = os.path.dirname(f0)
+      f = os.path.basename(f)
       f=f.split(".")
       if f[-1] == 'gz':
         f = f[:-2]
       else:
         f = f[:-1]
       f = '.'.join(f)
-      trimmed_filename = f+'_trimmed.fq.gz'
+      trimmed_filename = od + '/' + f +'_trimmed.fq.gz'
       if exists_skip(trimmed_filename):
         fastq_paths2.append(f0)
       trimmed_fq.append(trimmed_filename)
+      fastq_dirs.append(d)
     
   else:
     print('User specified input data to be paired-end... Running paired-end mode with tags %s and %s...\n' % (pair_tags[0],pair_tags[1]) )
@@ -217,8 +255,8 @@ if __name__ == '__main__':
         fastq_paths.append(csv[i,j])
       
     for f in fastq_paths:
-      f = os.path.expanduser(f)
-      f0 = f
+      f0 = os.path.expanduser(f)
+      f = os.path.basename(f)
       f=f.split(".")
       if f[-1] == 'gz':
         f = f[:-2]
@@ -226,9 +264,10 @@ if __name__ == '__main__':
         f = f[:-1]
       f = '.'.join(f)
       if pair_tags[0] in f:
-        trimmed_filename = f+'_val_1.fq.gz'
+        trimmed_filename = od + '/' + f + '_val_1.fq.gz'
+        d = os.path.dirname(f0)             # directory where fastq file is stored
       elif pair_tags[1] in f:
-        trimmed_filename = f+'_val_2.fq.gz'
+        trimmed_filename = od + '/' + f + '_val_2.fq.gz'
       else:
         sys.exit('ERROR: Paired read tag not found... Exiting...\n')
       
@@ -236,32 +275,16 @@ if __name__ == '__main__':
         fastq_paths2.append(f0)
       #fastq_paths3.append(f)
       trimmed_fq.append(trimmed_filename)
+      fastq_dirs.append(d)
   
   # Run Trim_galore followed by fastqc
   
   if fastq_paths2 != []:
     
-    if trim_galore is not None:
-      trim_galore = trim_galore.split(' ')
-      cmdArgs += trim_galore
-
-    if '-o' not in cmdArgs or '--output_dir' not in cmdArgs:
-       cmdArgs.append('-o')
-       od = f.split("/")
-       od = od[:-1]
-       od = '/'.join(od)
-       cmdArgs.append(od)
-    
-    if skipfastqc is False:
-      cmdArgs += ['-fastqc']
-      if fastqc_args is not None:
-        cmdArgs += ['-fastqc_args',fastqc_args]
-    else:
-      print('Skipping fastqc step...\n')
-    
     cmdArgs += fastq_paths2
     
     util.call(cmdArgs)
+    
   
   # Run Aligner
   
@@ -288,21 +311,23 @@ if __name__ == '__main__':
                '--outSAMtype','BAM','SortedByCoordinate',
                '--readFilesIn')
     
-    print(trimmed_fq)
-    
     bam_files = []
+    
+    k=0
     
     if is_single_end:
       
       print("Running single-end mode...\n")
-      
+
       for f in trimmed_fq:
+        fo = os.path.basename(f)
+        fo = fastq_dirs[k]+ '/' + fo
         if mapq > 0 :
-          bam = '%s.sorted_fil_%d.out.bam' % (f,mapq)
+          bam = '%s.sorted_fil_%d.out.bam' % (fo,mapq)
         else:
-          bam = '%s.sorted.out.bam' % f
-        
+          bam = '%s.sorted.out.bam' % fo
         bam_files.append(bam)
+        
         if exists_skip(bam):
           cmdArgs_se = list(cmdArgs)
           cmdArgs_se.append(f)
@@ -312,6 +337,7 @@ if __name__ == '__main__':
             os.remove('./Aligned.sortedByCoord.out.bam')
           else:
             os.rename('./Aligned.sortedByCoord.out.bam',bam)
+        k+=1
   
     else:
       
@@ -324,23 +350,25 @@ if __name__ == '__main__':
         sys.exit('ERROR: Number of fq files differs for read1 and read2... Exiting...\n')
       
       for i in range(0,len(trimmed_fq_r1)):
+        fo = os.path.basename(trimmed_fq_r1[i])
+        fo = fastq_dirs[k] + '/' + fo
         if mapq > 0 :
-          bam = '%s.pe.sorted_fil_%d.out.bam' % (trimmed_fq_r1[i],mapq)
+          bam = '%s.pe.sorted_fil_%d.out.bam' % (fo,mapq)
         else:
-          bam = '%s.pe.sorted.out.bam' % trimmed_fq_r1[i]
+          bam = '%s.pe.sorted.out.bam' % fo
         
         bam_files.append(bam)
+        
         if exists_skip(bam):
           cmdArgs_pe = list(cmdArgs)
           cmdArgs_pe += [trimmed_fq_r1[i],trimmed_fq_r2[i]]
-          print(" ".join(cmdArgs_pe))
           util.call(cmdArgs_pe)
           if mapq > 0 :
             rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
             os.remove('./Aligned.sortedByCoord.out.bam')
           else:
-            os.rename('./Aligned.sortedByCoord.out.bam',bam)
-        
+            os.rename('./Aligned.sortedByCoord.out.bam',bam)  
+        k+=1
   
   #########################
   ## Analysis with DESeq2##
@@ -451,6 +479,9 @@ if __name__ == '__main__':
       if '-o' in cuff_opt:
         ind = cuff_opt.index('-o') + 1
         out_folder = cuff_opt[ind] +'/'
+        print('Output folder for Cufflinks has been specified. Saved all output in:%s' % out_folder)
+      else:
+        no_output_folder = True
       if '--library-type' in cuff_opt:
         ind2 = cuff_opt.index('--library-type') + 1
         library_type = ['--library-type',cuff_opt[ind2]]
@@ -461,10 +492,11 @@ if __name__ == '__main__':
       if '-GTF-guide' in cuff_opt:
         ind3 = cuff_opt.index('-GTF-guide')+1
         cuff_gtf_file = ['-g',cuff_opt[ind3]]
-          
-      
-        
-    assemblies = out_folder + 'assembly_GTF_list.txt'    
+    
+    # Create assemblies file needed for cuffmerge    
+    assemblies = out_folder + 'assembly_GTF_list.txt'
+    if os.path.exists(assemblies):
+      os.remove(assemblies) 
     fileObj_assemblies = open(assemblies,'a')
     
     # Index bam files using samtools
@@ -477,16 +509,23 @@ if __name__ == '__main__':
       
     # Run Cufflinks command 
       cuff_files = ['genes.fpkm_tracking', 'isoforms.fpkm_tracking', 'skipped.gtf', 'transcripts.gtf']
-      f2 = f.split('/')[-1]
-      f_transcripts = out_folder + f2 + '_' + cuff_files[3]
+      if no_output_folder:
+        header_cuff = f + '_'
+      else:
+        f2 = f.split('/')[-1]
+        header_cuff = out_folder + f2 + '_'
+      f_transcripts = header_cuff + cuff_files[3]
+      
       fileObj_assemblies.write(f_transcripts + '\n')
       
       if exists_skip(f_transcripts):
-        cmdArgs = ['cufflinks']
+        cmdArgs = ['cufflinks','-p',str(num_cpu)]
         if cuff_opt is not None:
           cmdArgs += cuff_opt
         else:
           print('WARNING: No options were specified for Cufflinks. Developer\'s default options will be used...\n')
+        if no_output_folder:
+          print('No output folder for cufflinks has been specified. Files will be saved in the same folder as %s...\n' % f)
         if cuff_gtf is True:
           if not is_gtf_specified:
             cmdArgs.append('-g')
@@ -498,9 +537,10 @@ if __name__ == '__main__':
         # Rename output files 
         for i in range(4):
           ofc = out_folder + cuff_files[i]
-          nn = out_folder + f + '_' + cuff_files[i]
+          nn = header_cuff + cuff_files[i]
           os.rename(ofc, nn)
-        
+    
+    
     fileObj_assemblies.close()
     
     # Run Cuffmerge
@@ -546,18 +586,53 @@ if __name__ == '__main__':
         util.call(cmdArgs)
         os.rename(out_folder + 'abundances.cxb', ofc3)
         
+    
     # Run Cuffdiff
     
-    cmdArgs = ['cuffdiff'] + basic_options
+    dir_cdiff = out_folder +'/cuffdiff/'
+    dir_cdiff = new_dir(dir_cdiff)
+    
+    reps = [cxb_list[0]]
+    reps_list = []
+    conds = list(set(csv[:,3]))
+    conds = ','.join(conds)
+    
+    
+    for i in range(1,csv.shape[0]):
+      if csv[i-1,3]==csv[i,3]:
+        reps.append(cxb_list[i])
+      else:
+        reps_list.append(reps)
+        reps = [cxb_list[i]]
+    
+    reps_list.append(reps)
+
+    reps_list2 = []
+    
+    for reps in reps_list:
+      reps = ','.join(reps)
+      reps_list2.append(reps)
+      
+    
+    cmdArgs = ['cuffdiff'] + basic_options[:-1]
+    cmdArgs.append(dir_cdiff)
+    cmdArgs.append('-L')
+    cmdArgs.append(conds)
     cmdArgs.append(ofc2)
-    cmdArgs += cxb_list
+    cmdArgs += reps_list2
     util.call(cmdArgs)
     
     # Run Cuffnorm
+    
+    dir_cnorm = out_folder + '/cuffnorm/'
+    dir_cnorm = new_dir(dir_cnorm)
 
-    cmdArgs = ['cuffnorm'] + basic_options[3:]
+    cmdArgs = ['cuffnorm'] + basic_options[3:-1]
+    cmdArgs.append(dir_cnorm)
+    cmdArgs.append('-L')
+    cmdArgs.append(conds)
     cmdArgs.append(ofc2)
-    cmdArgs += cxb_list
+    cmdArgs += reps_list2
     util.call(cmdArgs)
     
     
