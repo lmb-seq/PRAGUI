@@ -9,11 +9,10 @@ import subprocess
 import sys
 import uuid
 import glob
-
+sys.path.append('/home/paulafp/Projects/cross_filter/')
 import cross_fil_util as util
 import numpy as np
 
-sys.path.append('/home/paulafp/Documents/temp/crossFil/')
 from readCsvFile import readCsvFile
 
 
