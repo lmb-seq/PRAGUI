@@ -1,3 +1,4 @@
 [submodule "cell_bio_util"]
 	path = cell_bio_util
 	url = https://github.com/lmb-cell-biology/cell_bio_util.git
+        ignore = dirty
