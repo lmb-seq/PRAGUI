@@ -9,7 +9,7 @@ import subprocess
 import sys
 import uuid
 import glob
-sys.path.append('/home/paulafp/Projects/cross_filter/')
+sys.path.append('./cell_bio_util')
 import cross_fil_util as util
 import numpy as np
 
