@@ -571,10 +571,11 @@ if __name__ == '__main__':
     
     basic_options = ['-u',
                      '-b', genome_fasta,
-                     '-p', str(num_cpu),
-                     '-o', out_folder]
+                     '-p', str(num_cpu)]
     if library_type is not None:
       basic_options += library_type
+    
+    basic_options += ['-o', out_folder] # Output folder added to the end so to facilitate using this object in downstream code (cuffdiff and cuffnorm steps)
     
     for f in bam_files:
       f2 = f.split('/')[-1]
