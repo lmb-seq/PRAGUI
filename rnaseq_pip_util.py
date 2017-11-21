@@ -9,9 +9,14 @@ import subprocess
 import sys
 import uuid
 import glob
-sys.path.append('./cell_bio_util')
-import cross_fil_util as util
 import numpy as np
+
+current_path = os.path.realpath(__file__)
+current_path = os.path.dirname(current_path) + '/cell_bio_util'
+
+sys.path.append(current_path)
+import cross_fil_util as util
+
 
 from readCsvFile import readCsvFile
 
@@ -621,6 +626,8 @@ if __name__ == '__main__':
     cmdArgs.append(ofc2)
     cmdArgs += reps_list2
     util.call(cmdArgs)
+    
+    exit()
     
     # Run Cuffnorm
     
