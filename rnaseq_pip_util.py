@@ -656,6 +656,7 @@ if __name__ == '__main__':
     
     cmdArgs = ['Rscript','--vanilla', os.environ["cummeRbund"],dir_cdiff]
     util.call(cmdArgs)
+    print('Plot saved in %s as exploratory_analysis_plots.pdf...\n' % dir_cdiff)
     
     
        
