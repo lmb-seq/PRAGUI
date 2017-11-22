@@ -143,6 +143,10 @@ if __name__ == '__main__':
 
   arg_parse.add_argument('-cuff_gtf', default=False, action='store_true',
                          help='Set "-g" option from cufflinks and use file specified in "-geneset_gtf" option. This option should not be set if "-cuff_gtf" already incorporates a gtf file to be used.')
+  
+  arg_parse.add_argument('-cuffnorm', default=False, action='store_true',
+                         help='Specify whether Cuffnorm should be executed besides Cuffdiff.')
+  
   args = vars(arg_parse.parse_args())
 
   samples_csv   = args['samples_csv']
@@ -163,8 +167,10 @@ if __name__ == '__main__':
   stranded      = args['stranded']
   contrast      = args['contrast']
   levels        = args['contrast_levels']
-  cuff_opt = args['cuff_opt']
-  cuff_gtf = args['cuff_gtf']
+  cuff_opt      = args['cuff_opt']
+  cuff_gtf      = args['cuff_gtf']
+  cuffnorm      = args['cuffnorm']
+  
   # out_top_dir   = args['outdir']
 
   if analysis_type == 'DESeq':
@@ -592,10 +598,7 @@ if __name__ == '__main__':
         os.rename(out_folder + 'abundances.cxb', ofc3)
         
     
-    # Run Cuffdiff
-    
-    dir_cdiff = out_folder +'/cuffdiff/'
-    dir_cdiff = new_dir(dir_cdiff)
+    # Set list of replicates and conditions for both Cuffnorm and Cuffdiff
     
     reps = [cxb_list[0]]
     reps_list = []
@@ -617,7 +620,29 @@ if __name__ == '__main__':
     for reps in reps_list:
       reps = ','.join(reps)
       reps_list2.append(reps)
+    
+    # Run Cuffnorm
+    
+    if cuffnorm: 
       
+      dir_cnorm = out_folder + '/cuffnorm/'
+      dir_cnorm = new_dir(dir_cnorm)
+
+      cmdArgs = ['cuffnorm'] + basic_options[3:-1]
+      cmdArgs.append(dir_cnorm)
+      cmdArgs.append('-L')
+      cmdArgs.append(conds)
+      cmdArgs.append(ofc2)
+      cmdArgs += reps_list2
+      util.call(cmdArgs)
+
+    
+    # Run Cuffdiff
+    
+    dir_cdiff = out_folder + '/cuffdiff/'
+    dir_cdiff = new_dir(dir_cdiff)
+      
+    basic_options[4] = '1' # Cuffdiff should not be run in more than 1 thread to avoid crashing due to insufficient memory
     
     cmdArgs = ['cuffdiff'] + basic_options[:-1]
     cmdArgs.append(dir_cdiff)
@@ -626,20 +651,10 @@ if __name__ == '__main__':
     cmdArgs.append(ofc2)
     cmdArgs += reps_list2
     util.call(cmdArgs)
-    
-    exit()
-    
-    # Run Cuffnorm
-    
-    dir_cnorm = out_folder + '/cuffnorm/'
-    dir_cnorm = new_dir(dir_cnorm)
 
-    cmdArgs = ['cuffnorm'] + basic_options[3:-1]
-    cmdArgs.append(dir_cnorm)
-    cmdArgs.append('-L')
-    cmdArgs.append(conds)
-    cmdArgs.append(ofc2)
-    cmdArgs += reps_list2
+    # Run CummeRbund
+    
+    cmdArgs = ['Rscript','--vanilla', os.environ["cummeRbund"],dir_cdiff]
     util.call(cmdArgs)
     
     
