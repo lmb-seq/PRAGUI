@@ -10,6 +10,11 @@ if(! "data.table" %in% rownames(installed.packages())){
   install.packages("data.table")
 }
 
+if((!"RSQLite" %in% rownames(installed.packages())) | packageDescription("RSQLite")$Version=="1.1-2"){
+  cat("WARNING: Updated RSQLite version is needed... Installing updated RSQLite version...")
+  install_packages("RSQLite")
+}
+
 if(! "DESeq2" %in% rownames(installed.packages())){
   cat("DESeq2 has not been installed....\nInstalling DESeq2\n")
   install.packages("DESeq2")
@@ -18,7 +23,6 @@ if(! "DESeq2" %in% rownames(installed.packages())){
 
 library(data.table)
 library(DESeq2)
-
 
 # sampleTable <-fread(args[1], header = FALSE,stringsAsFactors = TRUE)
 # setnames(sampleTable,old=names(sampleTable),new=c("samplename","filename","condition"))
@@ -150,3 +154,7 @@ if("deseq" %in% i){
   write.table(x = res,file = res_file,quote = FALSE,sep="\t",row.names = FALSE)
   
 }
+
+
+sessionInfo_file <-gsub('DESeq_table.txt','sessionInfo.txt',args[1])
+writeLines(capture.output(sessionInfo()), sessionInfo_file)

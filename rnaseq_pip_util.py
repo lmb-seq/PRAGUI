@@ -10,6 +10,8 @@ import sys
 import uuid
 import glob
 import numpy as np
+import shutil
+import HTSeq
 
 current_path = os.path.realpath(__file__)
 current_path = os.path.dirname(current_path) + '/cell_bio_util'
@@ -17,23 +19,13 @@ current_path = os.path.dirname(current_path) + '/cell_bio_util'
 sys.path.append(current_path)
 import cross_fil_util as util
 
-
 from readCsvFile import readCsvFile
 
 
 PROG_NAME = 'RNAseq Pipeline'
 DESCRIPTION = 'Process fastq files to RNAseq data analysis.'
 
-QUIET   = False
-LOGGING = False
-
-FILE_TAG = '_rnapip_' # This tag is used for formatting file names so they can be passed between the various RNAseq pipeline programs 
-
-TEMP_ID = '%s' % uuid.uuid4()
-LOG_FILE_PATH = 'rnapip-out-%s.log' % TEMP_ID
-LOG_FILE_OBJ = None # Created when needed
-MAX_CORES = multiprocessing.cpu_count()
-
+util.init_app('rnapip') # Redefine variables from cross_fil_util.py
 
 ALIGNERS = ('STAR', 'hisat2', 'tophat2')
 ALIGNER_STAR, ALIGNER_HISAT2, ALIGNER_TOPHAT2 = ALIGNERS
@@ -43,7 +35,7 @@ OTHER_ALIGNERS = [ALIGNER_HISAT2, ALIGNER_TOPHAT2]
 
 def exists_skip(filename):
   if os.path.exists(filename):
-    print('%s already exists and will not be overwritten. Skipping this folder/file...' % filename)
+    util.info('%s already exists and will not be overwritten. Skipping this folder/file...' % filename)
     return(False)
   else:
     return(True)
@@ -62,9 +54,36 @@ def rm_low_mapq(in_file,out_file_name,mapq):
 def new_dir(new_dir):
   if not exists_skip(new_dir):
     new_dir = util.get_temp_path(new_dir)
-    print('Output from Cuffdiff will be saved in %s' % new_dir)
-  os.makedirs(new_dir,exist_ok = True,mode = 0o666)
+    util.info('Output from Cuffdiff will be saved in %s' % new_dir)
+  os.makedirs(new_dir,exist_ok = True) #,mode = 0o666)
   return(new_dir)
+  
+def report_cuff_version(CUFF_PROG):
+  cufflinks_vs_obj = open('cufflinks_version_control.txt','a')
+  util.call(CUFF_PROG,stderr=cufflinks_vs_obj)
+  cufflinks_vs_obj.close()
+  cufflinks_vs_obj = open('cufflinks_version_control.txt','r')
+  cufflinks_vs = cufflinks_vs_obj.readline()
+  cufflinks_vs_obj.close()
+  util.LOG_FILE_OBJ.write(cufflinks_vs)
+  os.remove('cufflinks_version_control.txt')
+
+def rm_lines(f_in,f_out,string = '> Processing Locus'):
+  f_in_obj  = open(f_in,'r')
+  f_out_obj = open(f_out,'a')
+  line0 = None
+  for line in f_in_obj:
+    if not string in line:
+      if line0 is not None:
+        f_out_obj.write(line0)
+        line0 = None
+      f_out_obj.write(line)
+    else:
+      line0 = line
+  f_in_obj.close()
+  f_out_obj.flush()
+  os.remove(f_in)
+
 
 if __name__ == '__main__':
 
@@ -114,12 +133,6 @@ if __name__ == '__main__':
   arg_parse.add_argument('-barcode_csv',  metavar='BARCODE_CSV_FILE',
                          help='CSV format file containing barcode strain/sample names') 
   
-  arg_parse.add_argument('-q', default=False, action='store_true',
-                         help='Sets quiet mode to supress on-screen reporting.')
-  
-  arg_parse.add_argument('-log', default=False, action='store_true',
-                         help='Log all reported output to a file.')
-  
   arg_parse.add_argument('-cpu', metavar='NUM_CORES', default=util.MAX_CORES, type=int,
                          help='Number of parallel CPU cores to use. Default: All available (%d)' % util.MAX_CORES) 
  
@@ -147,6 +160,12 @@ if __name__ == '__main__':
   arg_parse.add_argument('-cuffnorm', default=False, action='store_true',
                          help='Specify whether Cuffnorm should be executed besides Cuffdiff.')
   
+  arg_parse.add_argument('-q', default=False, action='store_true',
+                         help='Sets quiet mode to supress on-screen reporting.')
+  
+  arg_parse.add_argument('-log', default=False, action='store_true',
+                         help='Log all reported output to a file.')
+
   args = vars(arg_parse.parse_args())
 
   samples_csv   = args['samples_csv']
@@ -171,17 +190,18 @@ if __name__ == '__main__':
   cuff_gtf      = args['cuff_gtf']
   cuffnorm      = args['cuffnorm']
   
-  # out_top_dir   = args['outdir']
+  # Reporting handled by cross_fil_util.py (submodule)
+  util.QUIET   = args['q']
+  util.LOGGING = args['log']
 
   if analysis_type == 'DESeq':
-    print('Differential gene expression analysis using DESeq2...')
+    util.info('Differential gene expression analysis using DESeq2...')
     if genome_gtf is None:
-      sys.exit('ERROR: Expecting file with gene annotations in gtf/gff format. Please provide full file path using the "-genome_gtf" option...')
+      util.critical('Expecting file with gene annotations in gtf/gff format. Please provide full file path using the "-genome_gtf" option...')
   elif analysis_type == 'Cufflinks':
-    print('Analysis of transcript expression using Cufflinks...')
+    util.info('Analysis of transcript expression using Cufflinks...')
   else:
-    print(analysis_type)
-    sys.exit('ERROR: Expecting ANALYSIS_TYPE to be either DESeq2 or Cufflinks...')
+    util.critical('Expecting ANALYSIS_TYPE to be either DESeq2 or Cufflinks...')
   
   if geneset_gtf is None:
     geneset_gtf = genome_gtf
@@ -195,7 +215,6 @@ if __name__ == '__main__':
   header = header.split()
   header2 = header
   header = ['samplename','filename'] + header[3:]
-  #header = "\t".join(header)
   header = np.array(header)
   
   csv = readCsvFile(filename=samples_csv,separator='\t',header=True) # returns numpy array
@@ -230,11 +249,11 @@ if __name__ == '__main__':
     if fastqc_args is not None:
       cmdArgs += ['-fastqc_args',fastqc_args]
   else:
-    print('Skipping fastqc step...\n')
+    util.info('Skipping fastqc step...')
   
   
   if is_single_end:
-    print('User specified input data to be single-end... Running single-end mode...\n')
+    util.info('User specified input data to be single-end... Running single-end mode...')
     fastq_paths = list(csv[:,1])
     
     for f in fastq_paths:
@@ -254,7 +273,7 @@ if __name__ == '__main__':
       fastq_dirs.append(d)
     
   else:
-    print('User specified input data to be paired-end... Running paired-end mode with tags %s and %s...\n' % (pair_tags[0],pair_tags[1]) )
+    util.info('User specified input data to be paired-end... Running paired-end mode with tags %s and %s...' % (pair_tags[0],pair_tags[1]) )
     cmdArgs.append('--paired')
     
     fastq_paths = []
@@ -279,7 +298,7 @@ if __name__ == '__main__':
       elif pair_tags[1] in f:
         trimmed_filename = od + '/' + f + '_val_2.fq.gz'
       else:
-        sys.exit('ERROR: Paired read tag not found... Exiting...\n')
+        util.critical('Paired read tag not found... Exiting...')
       
       if exists_skip(trimmed_filename):
         fastq_paths2.append(f0)
@@ -290,6 +309,11 @@ if __name__ == '__main__':
   # Run Trim_galore followed by fastqc
   
   if fastq_paths2 != []:
+    
+    #util.call(['trim_galore','-v'],stdout=util.LOG_FILE_OBJ) No need because Trim_galore reports version automatically
+    
+    if skipfastqc is False:
+      util.call(['fastqc','-v'],stdout=util.LOG_FILE_OBJ)
     
     cmdArgs += fastq_paths2
     
@@ -303,16 +327,17 @@ if __name__ == '__main__':
   # ADD STAR OPTIONS!!!
   if aligner is ALIGNER_STAR:
     if not os.path.exists(star_index):
-      print('STAR indices not found. Generating STAR indices...\n')
+      util.info('STAR indices not found. Generating STAR indices...')
       os.mkdir(star_index)
       cmdArgs = [ALIGNER_STAR,
                  '--runMode','genomeGenerate',
                  '--genomeDir',star_index,
                  '--genomeFastaFiles', genome_fasta,
                  '--runThreadN',str(num_cpu)]
+      util.call([ALIGNER_STAR,'--version'],stdout=util.LOG_FILE_OBJ)
       util.call(cmdArgs)
     
-    print('\nAligning reads using STAR...\n')
+    util.info('Aligning reads using STAR...')
     
     cmdArgs = (ALIGNER_STAR,
                '--genomeDir',star_index,
@@ -327,7 +352,7 @@ if __name__ == '__main__':
     
     if is_single_end:
       
-      print("Running single-end mode...\n")
+      util.info('Running single-end mode...')
 
       for f in trimmed_fq:
         fo = os.path.basename(f)
@@ -341,8 +366,10 @@ if __name__ == '__main__':
         if exists_skip(bam):
           cmdArgs_se = list(cmdArgs)
           cmdArgs_se.append(f)
+          util.call([ALIGNER_STAR,'--version'],stdout=util.LOG_FILE_OBJ)
           util.call(cmdArgs_se)
           if mapq > 0 :
+            util.call(['samtools','--version'],stdout=util.LOG_FILE_OBJ)
             rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
             os.remove('./Aligned.sortedByCoord.out.bam')
           else:
@@ -351,13 +378,13 @@ if __name__ == '__main__':
   
     else:
       
-      print("Running paired-end mode...\n")
+      util.info('Running paired-end mode...')
       
       trimmed_fq_r1 = list(filter(lambda x:pair_tags[0] in x, trimmed_fq)) # grep for python3
       trimmed_fq_r2 = list(filter(lambda x:pair_tags[1] in x, trimmed_fq))
       
       if len(trimmed_fq_r1) != len(trimmed_fq_r2):
-        sys.exit('ERROR: Number of fq files differs for read1 and read2... Exiting...\n')
+        util.critical('Number of fq files differs for read1 and read2... Exiting...')
       
       for i in range(0,len(trimmed_fq_r1)):
         fo = os.path.basename(trimmed_fq_r1[i])
@@ -372,8 +399,10 @@ if __name__ == '__main__':
         if exists_skip(bam):
           cmdArgs_pe = list(cmdArgs)
           cmdArgs_pe += [trimmed_fq_r1[i],trimmed_fq_r2[i]]
+          util.call([ALIGNER_STAR,'--version'],stdout=util.LOG_FILE_OBJ)
           util.call(cmdArgs_pe)
           if mapq > 0 :
+            util.call(['samtools','--version'],stdout=util.LOG_FILE_OBJ)
             rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
             os.remove('./Aligned.sortedByCoord.out.bam')
           else:
@@ -394,6 +423,8 @@ if __name__ == '__main__':
       rc_file = '%s_count_table.txt' % f
       rc_file_list.append(rc_file)
       if exists_skip(rc_file):
+        htseq_version = HTSeq.__version__
+        util.info('HTSeq version %s' % htseq_version)
         fileObj = open(rc_file,'wb')
         cmdArgs = ['htseq-count','--format=bam','--stranded=no']
         cmdArgs += [f,genome_gtf]
@@ -470,6 +501,11 @@ if __name__ == '__main__':
         DESeq_out_obj.close()
       else:
         util.call(cmdArgs)
+      
+      util.logging('')
+      sessionInfo_file = deseq_head + '_sessionInfo.txt'
+      shutil.copyfileobj(open(sessionInfo_file, 'r'), util.LOG_FILE_OBJ)
+      os.remove(sessionInfo_file)
   
   
   #############################
@@ -477,10 +513,11 @@ if __name__ == '__main__':
   #############################
   
   if analysis_type == 'Cufflinks':
-    print('Running Cufflinks...\n')
+    util.info('Running Cufflinks...')
     
     out_folder = './'
     library_type = None
+    no_output_folder = True
     
     # Get cufflinks options
     if cuff_opt is not None:
@@ -489,9 +526,8 @@ if __name__ == '__main__':
       if '-o' in cuff_opt:
         ind = cuff_opt.index('-o') + 1
         out_folder = cuff_opt[ind] +'/'
-        print('Output folder for Cufflinks has been specified. Saved all output in:%s' % out_folder)
-      else:
-        no_output_folder = True
+        util.info('Output folder for Cufflinks has been specified. Saved all output in:%s' % out_folder)
+        no_output_folder = False
       if '--library-type' in cuff_opt:
         ind2 = cuff_opt.index('--library-type') + 1
         library_type = ['--library-type',cuff_opt[ind2]]
@@ -513,7 +549,8 @@ if __name__ == '__main__':
     for f in bam_files:
       fi = f + '.bai'
       if exists_skip(fi):
-        print('Indexing file %s...\n' % f)
+        util.info('Indexing file %s...' % f)
+        util.call(['samtools','--version'],stdout=util.LOG_FILE_OBJ)
         cmdArgs = ['samtools','index',f]
         util.call(cmdArgs)
       
@@ -529,21 +566,27 @@ if __name__ == '__main__':
       fileObj_assemblies.write(f_transcripts + '\n')
       
       if exists_skip(f_transcripts):
+        
+        report_cuff_version('cufflinks') # Report version of cufflinks
+        
         cmdArgs = ['cufflinks','-p',str(num_cpu)]
         if cuff_opt is not None:
           cmdArgs += cuff_opt
         else:
-          print('WARNING: No options were specified for Cufflinks. Developer\'s default options will be used...\n')
+          util.warn('No options were specified for Cufflinks. Developer\'s default options will be used...')
         if no_output_folder:
-          print('No output folder for cufflinks has been specified. Files will be saved in the same folder as %s...\n' % f)
+          util.info('No output folder for cufflinks has been specified. Files will be saved in the same folder as %s...' % f)
         if cuff_gtf is True:
           if not is_gtf_specified:
             cmdArgs.append('-g')
             cmdArgs.append(geneset_gtf)
           else:
-             sys.exit('ERROR: option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...\n')
+             util.critical('Option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...')
         cmdArgs.append(f)
-        util.call(cmdArgs)
+        
+        util.call(cmdArgs,stderr='cufflinks_stderr.log')
+        rm_lines('cufflinks_stderr.log',util.LOG_FILE_PATH)
+        
         # Rename output files 
         for i in range(4):
           ofc = out_folder + cuff_files[i]
@@ -559,6 +602,7 @@ if __name__ == '__main__':
     ofc2 = out_folder + cuff_head + '_cuffmerge.gtf'
     
     if exists_skip(ofc2):
+      util.call(['cuffmerge','--version'],stdout=util.LOG_FILE_OBJ)
       err = 0
       cmdArgs = ['cuffmerge', '-s',genome_fasta,
                  '-p',str(num_cpu),
@@ -568,11 +612,12 @@ if __name__ == '__main__':
         err = 1
       elif cuff_gtf is True:
         if err is 1:
-          sys.exit('ERROR: option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...\n')
+          util.critical('Option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...')
         cmdArgs.append('-g')
         cmdArgs.append(geneset_gtf)
       cmdArgs.append(assemblies)
-      util.call(cmdArgs)
+      util.call(cmdArgs,stderr='cuffmerge_stderr.log')
+      rm_lines('cuffmerge_stderr.log',util.LOG_FILE_PATH)
       os.rename(out_folder + 'merged.gtf', ofc2)
       
     # Run Cuffquant
@@ -593,8 +638,10 @@ if __name__ == '__main__':
       cxb_list.append(ofc3)
       
       if exists_skip(ofc3):
+        report_cuff_version('cuffquant')
         cmdArgs = ['cuffquant'] + basic_options + [ofc2,f]
-        util.call(cmdArgs)
+        util.call(cmdArgs,stderr='cuffquant_stderr.log')
+        rm_lines('cuffquant_stderr.log',util.LOG_FILE_PATH)
         os.rename(out_folder + 'abundances.cxb', ofc3)
         
     
@@ -625,6 +672,8 @@ if __name__ == '__main__':
     
     if cuffnorm: 
       
+      report_cuff_version('cuffnorm')
+      
       dir_cnorm = out_folder + '/cuffnorm/'
       dir_cnorm = new_dir(dir_cnorm)
 
@@ -634,10 +683,13 @@ if __name__ == '__main__':
       cmdArgs.append(conds)
       cmdArgs.append(ofc2)
       cmdArgs += reps_list2
-      util.call(cmdArgs)
+      util.call(cmdArgs,stderr='cuffnorm_stderr.log')
+      rm_lines('cuffnorm_stderr.log',util.LOG_FILE_PATH)
 
     
     # Run Cuffdiff
+    
+    report_cuff_version('cuffdiff')
     
     dir_cdiff = out_folder + '/cuffdiff/'
     dir_cdiff = new_dir(dir_cdiff)
@@ -650,13 +702,14 @@ if __name__ == '__main__':
     cmdArgs.append(conds)
     cmdArgs.append(ofc2)
     cmdArgs += reps_list2
-    util.call(cmdArgs)
+    util.call(cmdArgs,stderr='cuffdiff_stderr.log')
+    rm_lines('cuffdiff_stderr.log',util.LOG_FILE_PATH)
 
     # Run CummeRbund
     
     cmdArgs = ['Rscript','--vanilla', os.environ["cummeRbund"],dir_cdiff]
     util.call(cmdArgs)
-    print('Plot saved in %s as exploratory_analysis_plots.pdf...\n' % dir_cdiff)
+    util.info('Plot saved in %s as exploratory_analysis_plots.pdf...' % dir_cdiff)
     
     
        

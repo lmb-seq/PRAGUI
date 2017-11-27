@@ -56,7 +56,7 @@ myGenes<-getGenes(cuff,myGeneIds)
 h<-csHeatmap(myGenes,cluster='both')
 
 
-pdf(file = paste0(wd,"/exploratory_analysis_plots.pdf"))
+pdf(file = "exploratory_analysis_plots.pdf")
 # Scattermatrix
 s
 # Dendrogram
@@ -66,4 +66,3 @@ genes.MDS.rep
 # Heatmap
 h
 dev.off()
-
