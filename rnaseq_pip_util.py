@@ -112,7 +112,7 @@ if __name__ == '__main__':
   
   arg_parse.add_argument('-trim_galore', # metavar='TRIM_GALORE_OPTIONS',
                          default=None, 
-                        help='options to be provided to trim_galore. They should be provided under quotes. If not provided, trim_galore will run with developer\'s default options.')
+                        help='Options to be provided to trim_galore. They should be provided under quotes. If not provided, trim_galore will run with developer\'s default options.')
   
   arg_parse.add_argument('-fastqc_args', metavar='FASTQC', 
                          default=None,
@@ -126,6 +126,9 @@ if __name__ == '__main__':
   
   arg_parse.add_argument('-star_index', metavar='STAR_GENOME_INDEX', default=None,
                          help='Path to directory where genome indices are stored.') 
+
+  arg_parse.add_argument('-star_args', default=None,
+                         help='Options to be provided to STAR. They should be provided under double quotes. If not provided, STAR will be expecting the following options: --readFilesCommand zcat -c, --outSAMtype BAM, SortedByCoordinate')   
   
   arg_parse.add_argument('-mapq', default=20, type=int,
                          help='Threshold below which reads will be removed from the aligned bam file.') 
@@ -178,6 +181,7 @@ if __name__ == '__main__':
   fastqc_args   = args['fastqc_args']
   aligner       = args['al']
   star_index    = args['star_index']
+  star_args     = args['star_args']
   mapq          = args['mapq']
   barcode_csv   = args['barcode_csv']
   num_cpu       = args['cpu'] or None # May not be zero
@@ -324,7 +328,6 @@ if __name__ == '__main__':
   
   # Check whether genomes indices are present. If not, create them.
   
-  # ADD STAR OPTIONS!!!
   if aligner is ALIGNER_STAR:
     if not os.path.exists(star_index):
       util.info('STAR indices not found. Generating STAR indices...')
@@ -339,12 +342,18 @@ if __name__ == '__main__':
     
     util.info('Aligning reads using STAR...')
     
-    cmdArgs = (ALIGNER_STAR,
+    cmdArgs = [ALIGNER_STAR,
                '--genomeDir',star_index,
-               '--runThreadN',str(num_cpu),
-               '--readFilesCommand', 'zcat', '-c',
-               '--outSAMtype','BAM','SortedByCoordinate',
-               '--readFilesIn')
+               '--runThreadN',str(num_cpu)]
+    
+    if star_args is None:
+      cmdArgs += ['--readFilesCommand', 'zcat', '-c',
+                  '--outSAMtype','BAM','SortedByCoordinate',
+                  '--readFilesIn']
+    else:
+      star_args = star_args.split()
+      cmdArgs += star_args
+      cmdArgs.append('--readFilesIn')
     
     bam_files = []
     
