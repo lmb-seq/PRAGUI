@@ -7,17 +7,17 @@ i <- unlist(strsplit(i,split = "_"))
 
 if(! "data.table" %in% rownames(installed.packages())){
   cat("data.table has not been installed....\nInstalling data.table\n")
-  install.packages("data.table")
+  install.packages("data.table",repos='http://cran.us.r-project.org')
 }
 
 if((!"RSQLite" %in% rownames(installed.packages())) | packageDescription("RSQLite")$Version=="1.1-2"){
   cat("WARNING: Updated RSQLite version is needed... Installing updated RSQLite version...")
-  install_packages("RSQLite")
+  install.packages("RSQLite",repos='http://cran.us.r-project.org')
 }
 
 if(! "DESeq2" %in% rownames(installed.packages())){
   cat("DESeq2 has not been installed....\nInstalling DESeq2\n")
-  install.packages("DESeq2")
+  install.packages("DESeq2",repos='http://cran.us.r-project.org')
 }
 
 

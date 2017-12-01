@@ -17,7 +17,7 @@ current_path = os.path.realpath(__file__)
 current_path = os.path.dirname(current_path) + '/cell_bio_util'
 
 sys.path.append(current_path)
-import cross_fil_util as util
+import cell_bio_util as util
 
 from readCsvFile import readCsvFile
 
