@@ -5,19 +5,40 @@ args <- commandArgs(trailingOnly=TRUE)
 i <- args[2]
 i <- unlist(strsplit(i,split = "_"))
 
-if(! "data.table" %in% rownames(installed.packages())){
+lmb_clust_packages = "/lmb/home/paulafp/applications/" # Only needed to run pipeline at the LMB
+
+if("R_lib" %in% dir(lmb_clust_packages)){
+  pack_loc = paste0(lmb_clust_packages,"R_lib/")
+  packages = rownames(installed.packages(pack_loc))
+  .libPaths(c(.libPaths(),pack_loc))
+} else {
+  packages = rownames(installed.packages())
+}
+
+if(!"data.table" %in% packages){
   cat("data.table has not been installed....\nInstalling data.table\n")
   install.packages("data.table",repos='http://cran.us.r-project.org')
 }
 
-if((!"RSQLite" %in% rownames(installed.packages())) | packageDescription("RSQLite")$Version=="1.1-2"){
+if((!"RSQLite" %in% packages) | packageDescription("RSQLite")$Version=="1.1-2"){
   cat("WARNING: Updated RSQLite version is needed... Installing updated RSQLite version...")
   install.packages("RSQLite",repos='http://cran.us.r-project.org')
 }
 
-if(! "DESeq2" %in% rownames(installed.packages())){
-  cat("DESeq2 has not been installed....\nInstalling DESeq2\n")
-  install.packages("DESeq2",repos='http://cran.us.r-project.org')
+if(!"DESeq2" %in% packages){
+  cat("DESeq2 has not been installed... Installing DESeq2\n")
+  source("https://bioconductor.org/biocLite.R")
+  biocLite("DESeq2")
+}
+
+if(!"pheatmap" %in% packages){
+  cat("pheatmap has not been installed....\nInstalling data.table\n")
+  install.packages("pheatmap",repos='http://cran.us.r-project.org')
+}
+
+if(!"RColorBrewer" %in% packages){
+  cat("RColorBrewer has not been installed....\nInstalling data.table\n")
+  install.packages("RColorBrewer",repos='http://cran.us.r-project.org')
 }
 
 

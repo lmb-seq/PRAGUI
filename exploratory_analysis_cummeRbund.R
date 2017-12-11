@@ -5,13 +5,23 @@ args <- commandArgs(trailingOnly=TRUE)
 wd <- args[1]
 setwd(wd)
 
+lmb_clust_packages = "/lmb/home/paulafp/applications/" # Only needed to run pipeline at the LMB
+
+if("R_lib2" %in% dir(lmb_clust_packages)){
+  pack_loc = paste0(lmb_clust_packages,"R_lib2/")
+  packages = rownames(installed.packages(pack_loc))
+  .libPaths(c(.libPaths(),pack_loc))
+} else {
+  packages = rownames(installed.packages())
+}
+
 if(! "data.table" %in% rownames(installed.packages())){
   cat("data.table has not been installed....\nInstalling data.table\n")
-  install.packages("data.table")
+  install.packages("data.table",repos='http://cran.us.r-project.org')
 }
 
 if(! "devtools" %in% rownames(installed.packages())){
-  cat("devtools has not been installed....\nInstalling devtools\n")
+  cat("devtools has not been installed....\nInstalling devtools\n",repos='http://cran.us.r-project.org')
   install.packages("devtools")
 }
 library(devtools)
