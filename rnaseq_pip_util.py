@@ -133,9 +133,6 @@ if __name__ == '__main__':
   arg_parse.add_argument('-mapq', default=20, type=int,
                          help='Threshold below which reads will be removed from the aligned bam file.') 
   
-  arg_parse.add_argument('-barcode_csv',  metavar='BARCODE_CSV_FILE',
-                         help='CSV format file containing barcode strain/sample names') 
-  
   arg_parse.add_argument('-cpu', metavar='NUM_CORES', default=util.MAX_CORES, type=int,
                          help='Number of parallel CPU cores to use. Default: All available (%d)' % util.MAX_CORES) 
  
@@ -183,7 +180,6 @@ if __name__ == '__main__':
   star_index    = args['star_index']
   star_args     = args['star_args']
   mapq          = args['mapq']
-  barcode_csv   = args['barcode_csv']
   num_cpu       = args['cpu'] or None # May not be zero
   pair_tags     = args['pe']
   is_single_end = args['se']
@@ -197,7 +193,14 @@ if __name__ == '__main__':
   # Reporting handled by cross_fil_util.py (submodule)
   util.QUIET   = args['q']
   util.LOGGING = args['log']
-
+  
+  python_version = 'python version ' + sys.version + '\n'
+  
+  python_command = ' '.join(sys.argv) + '\n'
+  
+  util.info(python_version)
+  util.info(python_command)
+  
   if analysis_type == 'DESeq':
     util.info('Differential gene expression analysis using DESeq2...')
     if genome_gtf is None:
@@ -214,7 +217,7 @@ if __name__ == '__main__':
   # Parse input comma separated file
   
   csvfile = open(samples_csv,'r')                  # Get header from csv file and build new header for
-  header = csvfile.readline()                       # input table needed for analysis in R.
+  header = csvfile.readline()                      # input table needed for analysis in R.
   csvfile.close()
   header = header.split()
   header2 = header
@@ -329,6 +332,9 @@ if __name__ == '__main__':
   # Check whether genomes indices are present. If not, create them.
   
   if aligner is ALIGNER_STAR:
+    if star_index is None:
+      star_index = os.path.dirname(genome_fasta) + '/star-genome/'
+      util.warn('Folder where STAR indices are located hasn\'t been specified. Program will default to %s...' % star_index)
     if not os.path.exists(star_index):
       util.info('STAR indices not found. Generating STAR indices...')
       os.mkdir(star_index)
