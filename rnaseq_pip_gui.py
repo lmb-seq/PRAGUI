@@ -3,6 +3,14 @@ import os
 from appJar import gui
 import rnaseq_pip_util as rnapip
 
+
+def test(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
+                       skipfastqc=False, fastqc_args=False, aligner=rnapip.DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
+                       star_index=None,star_args=None,num_cpu=8,mapq=20,stranded=False,contrast='condition',levels=None,
+                       cuff_opt=None, cuff_gtf=False,cuffnorm=False, python_command=None,q=False,log=False):
+  print(locals())
+
+
 app=gui()
 
 
@@ -15,7 +23,6 @@ def next(button,win):
   else:
     app.addButtons(win,launch)
 
-
 def add_pe_tags(btn):
    if btn == 'paired-end':
      app.addLabelEntry('tags')
@@ -25,36 +32,27 @@ def submit(btn):
     app.stop()
   else:
     args = app.getAllEntries()
+    args_copy = args.copy()
     if not csv_created:
       app.errorBox('Missing Input','Please provide sample information by pressing the csv button.')
       app.stop()   
-    elif app.getOptionBox('Library type') == 'paired-end' and 'pe' not in args.keys():
-      app.addLabelEntry('pe', 3, 1)
+    elif app.getOptionBox('Library type') == 'paired-end' and 'pair_tags' not in args.keys():
+      app.addLabelEntry('pair_tags', 3, 1)
       app.infoBox('Paired-end Reads','Please provide substrings/tags which are the only differences between paired FASTQ file paths. e.g.: r_1 r_2. And press submit.')  
     else:
-      fileObj = open('/home/paulafp/Desktop/test.txt','w')
-      global commandArgs
-      commandArgs = []
-      for key, val in args.items():
-        if val not in ['',0] and key not in ['samples_csv','genome_fasta']:
-          flag = '-%s' % key
-          commandArgs += [flag,str(val)]
+      for key, val in args_copy.items():
+        if val in ['',0]:
+          del(args[key])    
+      args['samples_csv'] = csv_file
       analysis_type = app.getOptionBox('analysis_type')
-      commandArgs += ['-analysis_type',analysis_type]
+      args['analysis_type'] = analysis_type
+      library_type = app.getOptionBox('Library type')
+      if library_type == 'single-end':
+        args['is_single_end'] = True
       checkBox = app.getAllCheckBoxes()
-      if app.getOptionBox('Library type') == 'single-end':
-        commandArgs.append('-se')
-      for key, val in checkBox.items():
-        if checkBox[key]:
-          flag = '-%s' % key
-          commandArgs.append(flag)
-      #samples_csv   = app.getEntry('samples_csv')
-      #fileObj.write('\n' + analysis_type + '\t' + str(samples_csv))
-      #stranded = app.getCheckBox('stranded')
-      #if stranded:
-      #  fileObj.write('\nstranded=True')
-      fileObj.write(' '.join(commandArgs))
-      fileObj.close()
+      args.update(checkBox)
+      rnapip.rnaseq_diff_caller(**args)
+
 
 def launch(win):
   samples = int(app.getEntry('samples_csv'))
@@ -91,6 +89,7 @@ def launch(win):
   app.showSubWindow(win)
 
 def create_csv(btn):
+  global csv_file
   csv_file = '%s/samples_%s.csv' % (os.getcwd(),str(uuid.uuid4())[:8])
   fileObj = open(csv_file,'w')
   header = 'samples\tread1\tread2\tcondition\n'
@@ -133,8 +132,8 @@ app.addLabelEntry('star_args')
 app.setEntryDefault('star_args', 'None')
 app.addLabelNumericEntry('mapq')
 app.setEntryDefault('mapq', 20)
-app.addLabelNumericEntry('cpu')
-app.setEntryDefault('cpu', 0)
+app.addLabelNumericEntry('num_cpu')
+app.setEntryDefault('num_cpu', 0)
 app.addLabelEntry('contrast')
 app.setEntryDefault('contrast', 'condition')
 app.addLabelNumericEntry('contrast_levels')

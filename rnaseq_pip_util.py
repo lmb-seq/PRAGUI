@@ -90,8 +90,7 @@ def rm_lines(f_in,f_out,string = '> Processing Locus'):
   os.remove(f_in)
 
 
-def trim_bam(samples_csv, trim_galore=None, skipfastqc=False, fastqc_args=False, is_single_end=False, pair_tags=['r_1','r_2']):
-  
+def parse_csv(samples_csv):
   # Parse input comma separated file
   csvfile = open(samples_csv,'r')                  # Get header from csv file and build new header for
   header = csvfile.readline()                      # input table needed for analysis in R.
@@ -102,6 +101,11 @@ def trim_bam(samples_csv, trim_galore=None, skipfastqc=False, fastqc_args=False,
   header = np.array(header)
   
   csv = readCsvFile(filename=samples_csv,separator='\t',header=True) # returns numpy array
+  
+  return(header,csv)
+
+
+def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=False, is_single_end=False, pair_tags=['r_1','r_2']):
   
   cmdArgs = ['trim_galore','--gzip']
   
@@ -199,10 +203,10 @@ def trim_bam(samples_csv, trim_galore=None, skipfastqc=False, fastqc_args=False,
     
     util.call(cmdArgs)
   
-  return(trimmed_fq)
+  return(trimmed_fq, fastq_dirs)
 
 
-def align(trimmed_fq, aligner, genome_fasta, star_index=None, star_args=None, num_cpu=util.MAX_CORES,
+def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_args=None, num_cpu=util.MAX_CORES,
           is_single_end = False, mapq=20, pair_tags=['r_1','r_2']):
   
   # Check whether genome indices are present. If not, create them.
@@ -322,7 +326,7 @@ def read_count_htseq(bam_files,genome_gtf,stranded=False):
   return(rc_file_list)
 
 
-def DESeq_analysis(rc_file_list,samples_csv,geneset_gtf,contrast='condition',levels=None):
+def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf,contrast='condition',levels=None):
   
   # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
   deseq_dir = os.path.dirname(rc_file_list[0]) + '/'
@@ -387,7 +391,7 @@ def DESeq_analysis(rc_file_list,samples_csv,geneset_gtf,contrast='condition',lev
     os.remove(sessionInfo_file)
 
 
-def Cufflinks_analysis(bam_files, genome_fasta, cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
+def Cufflinks_analysis(bam_files, csv, genome_fasta, cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
                        geneset_gtf=None,cuffnorm=False):
   
   out_folder = './'
@@ -617,26 +621,31 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
   if geneset_gtf is None:
     geneset_gtf = genome_gtf
   
+  # Parse samples csv file
+  
+  header, csv = parse_csv(samples_csv)
+  
   # Trim_galore
   
-  trimmed_fq = trim_bam(samples_csv=samples_csv, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args, 
-                        is_single_end=is_single_end, pair_tags=pair_tags)
+  trimmed_fq, fastq_dirs = trim_bam(samples_csv=samples_csv, csv=csv, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args, 
+                                    is_single_end=is_single_end, pair_tags=pair_tags)
   
   # Run Aligner
   
-  bam_files = align(trimmed_fq=trimmed_fq, aligner=aligner, star_index=star_index, star_args=star_args, genome_fasta=genome_fasta, 
-                    num_cpu=num_cpu, is_single_end=is_single_end, mapq=mapq, pair_tags=pair_tags)
+  bam_files = align(trimmed_fq=trimmed_fq, fastq_dirs=fastq_dirs, aligner=aligner, star_index=star_index, star_args=star_args, 
+                    num_cpu=num_cpu, genome_fasta=genome_fasta, is_single_end=is_single_end, mapq=mapq, pair_tags=pair_tags)
   
   # Differential gene expression
   
-  if analysis_type is 'DESeq':
+  if analysis_type == 'DESeq':
     # Generate Count matrix with HTSeq
     rc_file_list = read_count_htseq(bam_files = bam_files,genome_gtf=genome_gtf,stranded=stranded)
     # DESeq and exploratory analysis
-    DESeq_analysis(rc_file_list=rc_file_list,samples_csv=samples_csv,geneset_gtf=geneset_gtf,contrast=contrast,levels=levels)
+    DESeq_analysis(rc_file_list=rc_file_list, header=header, csv=csv, samples_csv=samples_csv,
+                   geneset_gtf=geneset_gtf,contrast=contrast,levels=levels)
   
   if analysis_type == 'Cufflinks':
-    Cufflinks_analysis(bam_files=bam_files, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
+    Cufflinks_analysis(bam_files=bam_files, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
                        genome_fasta=genome_fasta, geneset_gtf=geneset_gtf,cuffnorm=cuffnorm)
     
 
