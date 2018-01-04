@@ -105,7 +105,7 @@ def parse_csv(samples_csv):
   return(header,csv)
 
 
-def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=False, is_single_end=False, pair_tags=['r_1','r_2']):
+def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=None, is_single_end=False, pair_tags=['r_1','r_2']):
   
   cmdArgs = ['trim_galore','--gzip']
   
@@ -334,6 +334,10 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf,contrast='
   deseq_head = deseq_dir + deseq_head
   
   csv_deseq_name = append_to_file_name(deseq_head,'_DESeq_table.txt')
+  
+  sessionInfo_name = append_to_file_name(deseq_head,'_sessionInfo.txt')
+  sessionInfo_name_obj = open(sessionInfo_name,'w')
+  sessionInfo_name_obj.close()
   
   if exists_skip(csv_deseq_name):
     
@@ -591,7 +595,7 @@ def Cufflinks_analysis(bam_files, csv, genome_fasta, cuff_opt=None, cuff_gtf=Fal
 
 
 def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
-                       skipfastqc=False, fastqc_args=False, aligner=DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
+                       skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
                        star_index=None,star_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded=False,contrast='condition',levels=None,
                        cuff_opt=None, cuff_gtf=False,cuffnorm=False, python_command=None,q=False,log=False):
   

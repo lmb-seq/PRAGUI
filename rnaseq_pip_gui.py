@@ -5,7 +5,7 @@ import rnaseq_pip_util as rnapip
 
 
 def test(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
-                       skipfastqc=False, fastqc_args=False, aligner=rnapip.DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
+                       skipfastqc=False, fastqc_args=None, aligner=rnapip.DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
                        star_index=None,star_args=None,num_cpu=8,mapq=20,stranded=False,contrast='condition',levels=None,
                        cuff_opt=None, cuff_gtf=False,cuffnorm=False, python_command=None,q=False,log=False):
   print(locals())
