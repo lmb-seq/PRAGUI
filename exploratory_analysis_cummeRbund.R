@@ -72,4 +72,3 @@ genes.MDS.rep
 # h
 dev.off()
 
-dbDisconnect()
