@@ -26,11 +26,6 @@ if(! "devtools" %in% rownames(installed.packages())){
 }
 library(devtools)
 
-if((!"RSQLite" %in% rownames(installed.packages())) | packageDescription("RSQLite")$Version!="1.1-2"){
-  cat("WARNING: RSQLite version 1.1-2 is needed for cummeRbund... Installing RSQLite version 1.1-2...")
-  install_version("RSQLite", version = "1.1-2", repos = "http://cran.us.r-project.org")
-}
-
 if(!"cummeRbund" %in% rownames(installed.packages())){
   cat("cummeRbund has not been installed....\nInstalling cummeRbund\n")
   source("https://bioconductor.org/biocLite.R")
@@ -60,10 +55,10 @@ gene_diff2 <-gene_diff2[order(gene_diff2$abs_log2_fold_change,decreasing = TRUE)
 myGeneIds <- gene_diff2$gene_id[0:50]
 
 
-myGeneIds <- unique(gene.features[gene.features$gene_id %in% myGeneIds,]$gene_short_name)
-myGenes<-getGenes(cuff,myGeneIds)
-
-h<-csHeatmap(myGenes,cluster='both')
+# myGeneIds <- unique(gene.features[gene.features$gene_id %in% myGeneIds,]$gene_short_name)
+# myGenes<-getGenes(cuff,myGeneIds)
+# 
+# h<-csHeatmap(myGenes,cluster='both')
 
 
 pdf(file = "exploratory_analysis_plots.pdf")
@@ -74,6 +69,7 @@ plot(dend)
 # MDS plot
 genes.MDS.rep
 # Heatmap
-h
+# h
 dev.off()
 
+dbDisconnect()

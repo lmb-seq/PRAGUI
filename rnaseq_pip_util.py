@@ -395,7 +395,7 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf,contrast='
     os.remove(sessionInfo_file)
 
 
-def Cufflinks_analysis(bam_files, csv, genome_fasta, cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
+def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
                        geneset_gtf=None,cuffnorm=False):
   
   out_folder = './'
@@ -649,7 +649,7 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
                    geneset_gtf=geneset_gtf,contrast=contrast,levels=levels)
   
   if analysis_type == 'Cufflinks':
-    Cufflinks_analysis(bam_files=bam_files, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
+    Cufflinks_analysis(bam_files=bam_files, samples_csv=samples_csv, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
                        genome_fasta=genome_fasta, geneset_gtf=geneset_gtf,cuffnorm=cuffnorm)
     
 
