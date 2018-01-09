@@ -15,7 +15,8 @@ app=gui()
 
 
 def hide(win):
-  app.hideSubWindow('csv')
+  # app.hideSubWindow('csv')
+  app.destroySubWindow('csv')
 
 def next(button,win):
   if button == 'Cancel':
@@ -32,20 +33,33 @@ def submit(btn):
     app.stop()
   else:
     args = app.getAllEntries()
-    args_copy = args.copy()
-    if not csv_created:
-      app.errorBox('Missing Input','Please provide sample information by pressing the csv button.')
-      app.stop()   
-    elif app.getOptionBox('Library type') == 'paired-end' and 'pair_tags' not in args.keys():
+    args_copy = args.copy()    
+    if app.getOptionBox('Samples File') == 'create':
+      if 'samples_csv' not in args.keys():
+        app.addLabelNumericEntry('samples_csv',1,1)
+        app.setEntryDefault('samples_csv')
+        app.setLabelTooltip('samples_csv','Number of samples to be analysed.')
+        app.addButton('csv',launch,1,2)
+      else:
+        if not csv_created:
+          app.errorBox('Missing Input','Please provide sample information by pressing the csv button.')
+          return()
+        else:
+          args['samples_csv'] = csv_file
+    if app.getOptionBox('Samples File') == 'upload' and 'samples_csv' not in args.keys():
+      app.addFileEntry('samples_csv',1,1)
+      app.infoBox('Info','Please add path to csv file.')
+      return()
+    if app.getOptionBox('Library type') == 'paired-end' and 'pair_tags' not in args.keys():
       app.addLabelEntry('pair_tags', 3, 1)
-      app.infoBox('Paired-end Reads','Please provide substrings/tags which are the only differences between paired FASTQ file paths. e.g.: r_1 r_2. And press submit.')  
+      app.setLabelTooltip('pair_tags','Substrings/tags which are the only differences between paired FASTQ file paths. e.g.: r_1 r_2.')  
     else:
       if 'num_cpu' in args:
         args['num_cpu'] = int(args['num_cpu'])
       for key, val in args_copy.items():
         if val in ['',0]:
           del(args[key])    
-      args['samples_csv'] = csv_file
+      # args['samples_csv'] = csv_file
       analysis_type = app.getOptionBox('analysis_type')
       args['analysis_type'] = analysis_type
       library_type = app.getOptionBox('Library type')
@@ -54,6 +68,7 @@ def submit(btn):
       checkBox = app.getAllCheckBoxes()
       args.update(checkBox)
       rnapip.rnaseq_diff_caller(**args)
+      #test(**args)
 
 
 def launch(win):
@@ -115,9 +130,10 @@ csv_created = False
 
 app.addLabel('title', 'RNAseq Pipeline')
 app.setLabelBg('title','lightblue')
-app.addLabelNumericEntry('samples_csv')
-app.setEntryDefault('samples_csv')
-app.setLabelTooltip('samples_csv','Number of samples to analysed.')
+# app.addLabelNumericEntry('samples_csv')
+# app.setEntryDefault('samples_csv')
+# app.setLabelTooltip('samples_csv','Number of samples to analysed.')
+app.addLabelOptionBox('Samples File',['create','upload'])
 app.addLabelOptionBox('analysis_type',['DESeq','Cufflinks'])
 app.addLabelOptionBox('Library type',['paired-end','single-end'])
 app.addLabel('genome_fasta','Genome fasta file')
@@ -151,7 +167,7 @@ app.addCheckBox('log')
 
 app.addButtons(['submit','cancel'],submit)
 
-app.addButton('csv',launch)
+# app.addButton('csv',launch)
 
 
 app.go()
