@@ -1,5 +1,6 @@
 import uuid
 import os
+import sys
 from appJar import gui
 import rnaseq_pip_util as rnapip
 
