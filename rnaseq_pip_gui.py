@@ -3,6 +3,13 @@ import os
 from appJar import gui
 import rnaseq_pip_util as rnapip
 
+current_path = os.path.realpath(__file__)
+current_path = os.path.dirname(current_path) + '/cell_bio_util'
+
+sys.path.append(current_path)
+import cell_bio_util as util
+
+
 
 def test(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
                        skipfastqc=False, fastqc_args=None, aligner=rnapip.DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
@@ -14,8 +21,15 @@ def test(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=
 app=gui()
 
 
+def replace_key(dic,old_key, new_key):
+  if old_key in dic:
+    dic[new_key]=dic[old_key]
+    del(dic[old_key])
+    return(dic)
+
 def hide(win):
-  app.hideSubWindow('csv')
+  # app.hideSubWindow('csv')
+  app.destroySubWindow('csv')
 
 def next(button,win):
   if button == 'Cancel':
@@ -32,28 +46,55 @@ def submit(btn):
     app.stop()
   else:
     args = app.getAllEntries()
-    args_copy = args.copy()
-    if not csv_created:
-      app.errorBox('Missing Input','Please provide sample information by pressing the csv button.')
-      app.stop()   
-    elif app.getOptionBox('Library type') == 'paired-end' and 'pair_tags' not in args.keys():
+    args_copy = args.copy()    
+    if app.getOptionBox('Samples File') == 'create':
+      if 'samples_csv' not in args.keys():
+        app.addLabelNumericEntry('samples_csv',1,1)
+        app.setEntryDefault('samples_csv')
+        app.setLabelTooltip('samples_csv','Number of samples to be analysed.')
+        app.addButton('csv',launch,1,2)
+      else:
+        if not csv_created:
+          app.errorBox('Missing Input','Please provide sample information by pressing the csv button.')
+          return()
+        else:
+          args['samples_csv'] = csv_file
+    if app.getOptionBox('Samples File') == 'upload' and 'samples_csv' not in args.keys():
+      app.addFileEntry('samples_csv',1,1)
+      app.infoBox('Info','Please add path to csv file.')
+      return()
+    if app.getOptionBox('Library type') == 'paired-end' and 'pair_tags' not in args.keys():
       app.addLabelEntry('pair_tags', 3, 1)
-      app.infoBox('Paired-end Reads','Please provide substrings/tags which are the only differences between paired FASTQ file paths. e.g.: r_1 r_2. And press submit.')  
+      app.setLabelTooltip('pair_tags','Substrings/tags which are the only differences between paired FASTQ file paths. e.g.: r_1 r_2.')  
     else:
       if 'num_cpu' in args:
         args['num_cpu'] = int(args['num_cpu'])
       for key, val in args_copy.items():
         if val in ['',0]:
           del(args[key])    
-      args['samples_csv'] = csv_file
+      # args['samples_csv'] = csv_file
       analysis_type = app.getOptionBox('analysis_type')
       args['analysis_type'] = analysis_type
       library_type = app.getOptionBox('Library type')
       if library_type == 'single-end':
         args['is_single_end'] = True
       checkBox = app.getAllCheckBoxes()
-      args.update(checkBox)
-      rnapip.rnaseq_diff_caller(**args)
+      if 'qsub' in checkBox:
+        del(checkBox['qsub'])
+        args.update(checkBox)
+        for old_key, new_key in [['num_cpu','cpu'],['pair_tags','pe'],['is_single_end','se']]:
+          replace_key(args,old_key,new_key)
+        command = 'python3 /lmb/home/paulafp/applications/RNAseq_pipeline//rnaseq_pip_util.py'
+        for key, item in args.items():
+          k_i = '-%s %s' % (key,item)
+          command = command + k_i
+          qsubArgs = ['echo',command,'qsub','-cwd','-pe','smp','8','-j','y']
+          util.call(qsubArgs)
+          app.infoBox('Info','Running Pipeline via qsub on the LMB cluster.')
+      else:
+        args.update(checkBox)
+        rnapip.rnaseq_diff_caller(**args)
+      #test(**args)
 
 
 def launch(win):
@@ -115,9 +156,10 @@ csv_created = False
 
 app.addLabel('title', 'RNAseq Pipeline')
 app.setLabelBg('title','lightblue')
-app.addLabelNumericEntry('samples_csv')
-app.setEntryDefault('samples_csv')
-app.setLabelTooltip('samples_csv','Number of samples to analysed.')
+# app.addLabelNumericEntry('samples_csv')
+# app.setEntryDefault('samples_csv')
+# app.setLabelTooltip('samples_csv','Number of samples to analysed.')
+app.addLabelOptionBox('Samples File',['create','upload'])
 app.addLabelOptionBox('analysis_type',['DESeq','Cufflinks'])
 app.addLabelOptionBox('Library type',['paired-end','single-end'])
 app.addLabel('genome_fasta','Genome fasta file')
@@ -148,10 +190,11 @@ app.addCheckBox('cuff_gtf')
 app.addCheckBox('cuffnorm')
 app.addCheckBox('q')
 app.addCheckBox('log')
+app.addCheckBox('qsub')
 
 app.addButtons(['submit','cancel'],submit)
 
-app.addButton('csv',launch)
+# app.addButton('csv',launch)
 
 
 app.go()
