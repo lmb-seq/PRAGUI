@@ -128,7 +128,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
   else:
     cmdArgs.append('-o')
     if exists_skip('./trim_galore'):
-      os.makedirs('./trim_galore',exist_ok = True,mode = 0o666)
+      os.makedirs('./trim_galore',exist_ok = True)
     od = './trim_galore'
     cmdArgs.append(od)
   

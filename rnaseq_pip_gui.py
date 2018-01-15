@@ -80,7 +80,8 @@ def submit(btn):
       if library_type == 'single-end':
         args['is_single_end'] = True
       checkBox = app.getAllCheckBoxes()
-      if 'qsub' in checkBox:
+      qsub = checkBox['qsub']
+      if qsub in checkBox:
         del(checkBox['qsub'])
         args.update(checkBox)
         for old_key, new_key in [['num_cpu','cpu'],['pair_tags','pe'],['is_single_end','se']]:
@@ -94,6 +95,7 @@ def submit(btn):
           app.infoBox('Info','Running Pipeline via qsub on the LMB cluster.')
           return()
       else:
+        del(checkBox['qsub'])
         args.update(checkBox)
         rnapip.rnaseq_diff_caller(**args)
       #test(**args)
