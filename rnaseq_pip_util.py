@@ -148,12 +148,10 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       f0 = os.path.expanduser(f)
       d = os.path.dirname(f0)
       f = os.path.basename(f)
-      f=f.split(".")
-      if f[-1] == 'gz':
+      if 'fq.gz' in f:
+        f=f.split(".")
         f = f[:-2]
-      else:
-        f = f[:-1]
-      f = '.'.join(f)
+        f = '.'.join(f)
       trimmed_filename = od + '/' + f +'_trimmed.fq.gz'
       if exists_skip(trimmed_filename):
         fastq_paths2.append(f0)
@@ -174,12 +172,10 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
     for f in fastq_paths:
       f0 = os.path.expanduser(f)
       f = os.path.basename(f)
-      f=f.split(".")
-      if f[-1] == 'gz':
+      if 'fq.gz' in f:
+        f=f.split(".")
         f = f[:-2]
-      else:
-        f = f[:-1]
-      f = '.'.join(f)
+        f = '.'.join(f)
       if pair_tags[0] in f:
         trimmed_filename = od + '/' + f + '_val_1.fq.gz'
         d = os.path.dirname(f0)             # directory where fastq file is stored
@@ -289,7 +285,6 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
           bam = '%s.pe.sorted.out.bam' % fo
         
         bam_files.append(bam)
-        
         if exists_skip(bam):
           cmdArgs_pe = list(cmdArgs)
           cmdArgs_pe += [trimmed_fq_r1[i],trimmed_fq_r2[i]]
@@ -326,7 +321,13 @@ def read_count_htseq(bam_files,genome_gtf,stranded=False):
   return(rc_file_list)
 
 
-def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf,contrast='condition',levels=None):
+def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism, contrast='condition', levels=None):
+  
+  if organism not in ['human', 'mouse', 'worm', 'fly', 'yeast', 'zebrafish']:
+    organism = None
+    util.info('No recognised organism provided...')
+  else:
+    util.info('User provided recognised organism. Using %s genes names in differential analysis output...' % organism)
   
   # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
   deseq_dir = os.path.dirname(rc_file_list[0]) + '/'
@@ -378,9 +379,9 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf,contrast='
     i = "_".join(i)
     
     if levels is None:
-      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast]
+      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, organism, contrast]
     else:
-      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, contrast] + levels
+      cmdArgs = ['Rscript','--vanilla', os.environ["RNAseq_analysis"], csv_deseq_name, i, geneset_gtf, organism, contrast] + levels
     
     if "deseq" in i:
       DESeq_out_obj = open(DESeq_summary,"wb")
@@ -595,7 +596,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
 
 
 def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
-                       skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
+                       skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER,organism=None, is_single_end=False, pair_tags=['r_1','r_2'],
                        star_index=None,star_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded=False,contrast='condition',levels=None,
                        cuff_opt=None, cuff_gtf=False,cuffnorm=False, python_command=None,q=False,log=False):
   
@@ -612,6 +613,9 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
     util.info(locals())
   else:
     util.info(python_command)
+  
+  if isinstance(pair_tags, str):
+    pair_tags = pair_tags.split(',')
   
   if analysis_type == 'DESeq':
     util.info('Differential gene expression analysis using DESeq2...')
@@ -646,7 +650,7 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
     rc_file_list = read_count_htseq(bam_files = bam_files,genome_gtf=genome_gtf,stranded=stranded)
     # DESeq and exploratory analysis
     DESeq_analysis(rc_file_list=rc_file_list, header=header, csv=csv, samples_csv=samples_csv,
-                   geneset_gtf=geneset_gtf,contrast=contrast,levels=levels)
+                   geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels)
   
   if analysis_type == 'Cufflinks':
     Cufflinks_analysis(bam_files=bam_files, samples_csv=samples_csv, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
@@ -693,6 +697,9 @@ if __name__ == '__main__':
   
   arg_parse.add_argument('-al', metavar='ALIGNER_NAME', default=DEFAULT_ALIGNER,
                          help='Name of the program to perform the genome alignment/mapping: Default: %s Other options: %s' % (DEFAULT_ALIGNER, OTHER_ALIGNERS)) 
+  
+  arg_parse.add_argument('-organism', metavar='ORGANISM', default=None,
+                         help='Name of the organism used if one of the following: Homo sapiens, Mus musculus, Caenorhabditis elegans, Drosophila Melanogaster, Saccharomyces Cerevisiae or Danio rerio. Please only use keywords: human, mouse, worm, fly, yeast or zebrafish respectively. If other organism is used, system will default to None.')
   
   arg_parse.add_argument('-star_index', metavar='STAR_GENOME_INDEX', default=None,
                          help='Path to directory where genome indices are stored.') 
@@ -747,6 +754,7 @@ if __name__ == '__main__':
   skipfastqc    = args['skipfastqc']
   fastqc_args   = args['fastqc_args']
   aligner       = args['al']
+  organism      = args['organism']
   star_index    = args['star_index']
   star_args     = args['star_args']
   mapq          = args['mapq']
@@ -769,7 +777,7 @@ if __name__ == '__main__':
   
   rnaseq_diff_caller(samples_csv=samples_csv, genome_fasta=genome_fasta, genome_gtf=genome_gtf, geneset_gtf=geneset_gtf, 
                      analysis_type=analysis_type, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args,
-                     aligner=aligner, is_single_end=is_single_end, pair_tags=pair_tags,star_index=star_index,
+                     aligner=aligner, organism=organism,is_single_end=is_single_end, pair_tags=pair_tags,star_index=star_index,
                      star_args=star_args,num_cpu=num_cpu,mapq=mapq,stranded=stranded,contrast=contrast,levels=levels,
                      cuff_opt=cuff_opt, cuff_gtf=cuff_gtf,cuffnorm=cuffnorm, python_command=python_command,q=q,log=log)
   

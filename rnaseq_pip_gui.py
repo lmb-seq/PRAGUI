@@ -90,7 +90,7 @@ def submit(btn):
         for key, item in args.items():
           k_i = '-%s %s' % (key,item)
           command = command + k_i
-          qsubArgs = ['echo',command,'|','qsub','-cwd','-pe','smp','4','-j','y']
+          qsubArgs = ['echo',command,'|','qsub','-V','-cwd','-pe','smp','4','-j','y']
           util.call(qsubArgs)
           app.infoBox('Info','Running Pipeline via qsub on the LMB cluster.')
           return()
