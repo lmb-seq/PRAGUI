@@ -106,7 +106,6 @@ def parse_csv(samples_csv):
 
 
 def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=None, is_single_end=False, pair_tags=['r_1','r_2']):
-  
   cmdArgs = ['trim_galore','--gzip']
   
   fastq_paths2 = []
@@ -128,7 +127,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
   else:
     cmdArgs.append('-o')
     if exists_skip('./trim_galore'):
-      os.makedirs('./trim_galore',exist_ok = True,mode = 0o666)
+      os.makedirs('./trim_galore',exist_ok = True) #,mode = 0o666)
     od = './trim_galore'
     cmdArgs.append(od)
   

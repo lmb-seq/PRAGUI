@@ -1,6 +1,7 @@
 import uuid
 import os
 import sys
+from tempfile import NamedTemporaryFile
 from appJar import gui
 import rnaseq_pip_util as rnapip
 
@@ -81,18 +82,37 @@ def submit(btn):
         args['is_single_end'] = True
       checkBox = app.getAllCheckBoxes()
       if 'qsub' in checkBox:
+        temp = util.get_rand_string(5) + ".sh"
+        tempObj = open(temp,'w')
         del(checkBox['qsub'])
-        args.update(checkBox)
+        # args.update(checkBox)
         for old_key, new_key in [['num_cpu','cpu'],['pair_tags','pe'],['is_single_end','se']]:
           replace_key(args,old_key,new_key)
-        command = '\"python3 /lmb/home/paulafp/applications/RNAseq_pipeline//rnaseq_pip_util.py \"'
+        command = ''
         for key, item in args.items():
-          k_i = '-%s %s' % (key,item)
-          command = command + k_i
-          qsubArgs = ['echo',command,'|','qsub','-cwd','-pe','smp','4','-j','y']
-          util.call(qsubArgs)
-          app.infoBox('Info','Running Pipeline via qsub on the LMB cluster.')
-          return()
+          if key == 'samples_csv':
+            samples_csv = item
+          elif key == 'genome_fasta':
+            genome_fasta = item
+          elif key == 'se':
+            if item:
+              k_i = " -%s " % key
+              command = command + k_i
+          else:
+            if key in ['trim_galore','fastqc_args','star_args','cuff_opt']:
+              item = '\"%s\"' % item
+            k_i = '-%s %s ' % (key,item)
+            command = command + k_i
+        for key, item in checkBox.items():
+          if item:
+            command = command + " -%s " % key
+        command = '/lmb/home/paulafp/applications/anaconda3/bin/python3 /lmb/home/paulafp/applications/RNAseq_pipeline//rnaseq_pip_util.py %s %s %s ' % (samples_csv,genome_fasta,command)
+        tempObj.write(command)
+        tempObj.close()
+        qsubArgs = ['qsub','-cwd','-pe','smp','4','-j','y','-V',temp]
+        util.call(qsubArgs)
+        app.infoBox('Info','Running Pipeline via qsub on the LMB cluster.')
+        os.remove(temp)
       else:
         args.update(checkBox)
         rnapip.rnaseq_diff_caller(**args)
