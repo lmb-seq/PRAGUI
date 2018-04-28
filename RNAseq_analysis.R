@@ -41,6 +41,33 @@ if(!"RColorBrewer" %in% packages){
   install.packages("RColorBrewer",repos='http://cran.us.r-project.org')
 }
 
+if(!"refGenome" %in% packages){
+  cat("refGenome has not been installed....\nInstalling data.table\n")
+  install.packages("refGenome",repos='http://cran.us.r-project.org')
+}
+
+
+databases <- list(human=list("org.Hs.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SYMBOL","UCSCKG")),
+                  mouse=list("org.Mm.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","MGI","REFSEQ","SYMBOL")),
+                  worm=list("org.Ce.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","MGI","REFSEQ","SYMBOL","WORMBASE")),
+                  fly=list("org.Dm.eg.db"), # NEEDS TO BE COMPLETED!!
+                  zebrafish=list("org.Dm.eg.db"), # NEEDS TO BE COMPLETED!!
+                  yeast=list("org.Sc.sgd.db")) # NEEDS TO BE COMPLETED!!
+
+gtf <- args[3]
+organism <- args[4]
+
+
+if(organism %in% names(databases)){
+  dtb <- databases[[organism]][[1]]
+  ids <- databases[[organism]][[2]]
+  names(dtb)<-NULL
+  source("https://bioconductor.org/biocLite.R")
+  biocLite(pkgs = c("Biobase","AnnotationDbi",dtb),ask = FALSE)
+  library(Biobase)
+  library(AnnotationDbi)
+  library(dtb,character.only = TRUE)
+}
 
 library(data.table)
 library(DESeq2)
@@ -54,7 +81,7 @@ setnames(sampleTable,old=names(sampleTable)[1:2],new=c("samplename","filename"))
 
 
 directory<-""
-design_formula <- as.formula(paste("~",args[4]))
+design_formula <- as.formula(paste("~",args[5]))
 
 
 dds <- DESeqDataSetFromHTSeqCount(sampleTable = sampleTable,
@@ -70,8 +97,9 @@ ppca<-NULL
 if("ea" %in% i ){
   dds <- dds[ rowSums(counts(dds)) > 1, ]
 
-  rld <- rlog(dds, blind = FALSE) # blind = FALSE means that differences between cell lines and treatment (the variables in the design)
-                                  # will not contribute to the expected variance-mean trend of the experiment.
+  rld <- rlog(dds, blind = FALSE) # blind = FALSE means that the experimental design is used in estimating
+                                  # the global amount of variability in the counts.
+                                  # However, it is not used directly in the transformation of read counts.
   
   sampleDists <- dist(t(assay(rld)))
   
@@ -109,7 +137,7 @@ if(!is.null(ppca)){
 if("tpm" %in% i) {
   library("GenomicFeatures")
   #txdb <- makeTxDbFromGFF("/home/paulafp/Documents/temp/WS255_WBcel235/c_elegans.PRJNA13758.WS255.canonical_geneset.gtf")
-  txdb <- makeTxDbFromGFF(args[3])
+  txdb <- makeTxDbFromGFF(gtf)
   exons.list.per.gene <- exonsBy(txdb,by="gene")
   
   exons.list.per.gene <- reduce(exons.list.per.gene)
@@ -152,11 +180,11 @@ if("tpm" %in% i) {
 
 if("deseq" %in% i){
   dds <- DESeq(dds)
-  if(length(args)==4){
+  if(length(args)==5){
     res <- results(dds)
   }
   else{
-    res <- results(dds,contrast=c(args[4:6]))
+    res <- results(dds,contrast=c(args[5:7]))
   }
   
   res <- res[order(res$padj),]
@@ -176,6 +204,67 @@ if("deseq" %in% i){
   
 }
 
+if(organism %in% names(databases)){
+  baseMeanPerLvl <- as.data.frame(sapply( levels(dds$condition), function(lvl) rowMeans( counts(dds,normalized=TRUE)[,dds$condition == lvl] ) ))
+  colnames(baseMeanPerLvl)<-paste0("sample_",1:length(colnames(baseMeanPerLvl)))
+  baseMeanPerLvl$gene_id <- rownames(baseMeanPerLvl)
+  baseMeanPerLvl <- as.data.table(baseMeanPerLvl)
+  
+  res_4_pete <- as.data.table(res[,c("geneName", "log2FoldChange","stat","pvalue","padj")])
+  
+  setnames(res_4_pete,names(res_4_pete),c("gene_id","log2(fold_change)","test_stat","p_value","q_value"))
+  
+  #  Create ensemblGenome object for storing Ensembl genomic annotation data
+  library(refGenome)
+  ens <- ensemblGenome() 
+  
+  wd <- getwd()
+  setwd(dirname(gtf))
+  # read GTF file into ensemblGenome object
+  read.gtf(ens, basename(gtf))
+  setwd(wd)
+  
+  # create table of genes
+  my_gene <- as.data.table(getGenePositions(ens))
+  my_gene[,locus:=paste0(seqid,":",start,"-",end)]
+  
+  setkey(res_4_pete,gene_id)
+  setkey(baseMeanPerLvl,gene_id)
+  setkey(my_gene,gene_id)
+  
+  cols <- c("gene_id","locus",names(baseMeanPerLvl)[-length(baseMeanPerLvl)],"log2(fold_change)","test_stat","p_value","q_value")
+  res_4_pete<-res_4_pete[baseMeanPerLvl]
+  res_4_pete<-res_4_pete[my_gene]
+  res_4_pete<-res_4_pete[,cols,with=FALSE]
+  
+  res_4_pete[,significant:=ifelse(q_value<=0.05,"yes","no")]
+  
+  test<-res_4_pete$gene_id[1:5]
+  findannot <- FALSE
+  i=1
+  while(findannot==FALSE){
+    annot<-ids[i]
+    findannot<-any(test %in% keys(get(dtb),keytype = annot))
+    i=i+1
+  }
+  
+  all_names <- function(x){paste(x,sep = "_")}
+  
+  geneSymbols <- unlist(mapIds(get(dtb), keys=res_4_pete$gene_id, column="SYMBOL", keytype=annot,multiVals=all_names))
+  
+  geneSymbols2<-data.table(gene=geneSymbols,gene_id=names(geneSymbols))
+  setkey(geneSymbols2,gene_id)
+  
+  res_4_pete<-geneSymbols2[res_4_pete]
+  
+  res_4_pete[,test_id:=gene_id]
+  
+  res_4_pete<-res_4_pete[order(p_value)]
+  res_4_pete <- res_4_pete[,c("test_id","gene_id","gene","locus","sample_1", "sample_2", "log2(fold_change)", "test_stat", "p_value", "q_value", "significant"), with=FALSE]
+  
+  res_4_pete_file = gsub('DESeq_table.txt','DESeq_results_4_pete.txt',args[1])
+  write.table(x = res_4_pete,file = res_4_pete_file,quote = FALSE,sep="\t",row.names = FALSE)
+}
 
 sessionInfo_file <-gsub('DESeq_table.txt','sessionInfo.txt',args[1])
 writeLines(capture.output(sessionInfo()), sessionInfo_file)
