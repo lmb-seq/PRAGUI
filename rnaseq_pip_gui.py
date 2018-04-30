@@ -80,6 +80,8 @@ def submit(btn):
       library_type = app.getOptionBox('Library type')
       if library_type == 'single-end':
         args['is_single_end'] = True
+      organism = app.getOptionBox('organism')
+      args['organism'] = organism
       checkBox = app.getAllCheckBoxes()
       if 'qsub' in checkBox:
         temp = util.get_rand_string(5) + ".sh"
@@ -88,7 +90,7 @@ def submit(btn):
         # args.update(checkBox)
         for old_key, new_key in [['num_cpu','cpu'],['pair_tags','pe'],['is_single_end','se']]:
           replace_key(args,old_key,new_key)
-        command = '\"python3 /lmb/home/paulafp/applications/RNAseq_pipeline//rnaseq_pip_util.py \"'
+        command = ''
         for key, item in args.items():
           if key == 'samples_csv':
             samples_csv = item
@@ -114,7 +116,7 @@ def submit(btn):
         app.infoBox('Info','Running Pipeline via qsub on the LMB cluster.')
         os.remove(temp)
       else:
-        del(checkBox['qsub'])
+      #  del(checkBox['qsub'])
         args.update(checkBox)
         rnapip.rnaseq_diff_caller(**args)
       #test(**args)
@@ -185,6 +187,7 @@ app.setLabelBg('title','lightblue')
 app.addLabelOptionBox('Samples File',['create','upload'])
 app.addLabelOptionBox('analysis_type',['DESeq','Cufflinks'])
 app.addLabelOptionBox('Library type',['paired-end','single-end'])
+app.addLabelOptionBox('organism',['human', 'mouse', 'worm', 'fly', 'yeast', 'zebrafish'])
 app.addLabel('genome_fasta','Genome fasta file')
 app.addFileEntry('genome_fasta')
 app.addLabel('genome_gtf','Genome gtf file')

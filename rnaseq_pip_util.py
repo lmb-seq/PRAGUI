@@ -127,11 +127,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
   else:
     cmdArgs.append('-o')
     if exists_skip('./trim_galore'):
-<<<<<<< HEAD
-      os.makedirs('./trim_galore',exist_ok = True) #,mode = 0o666)
-=======
       os.makedirs('./trim_galore',exist_ok = True)
->>>>>>> 73b50b25a9bc9c90b8f7f6befc047c06ce5bcb72
     od = './trim_galore'
     cmdArgs.append(od)
   
@@ -255,7 +251,6 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
         else:
           bam = '%s.sorted.out.bam' % fo
         bam_files.append(bam)
-        
         if exists_skip(bam):
           cmdArgs_se = list(cmdArgs)
           cmdArgs_se.append(f)
