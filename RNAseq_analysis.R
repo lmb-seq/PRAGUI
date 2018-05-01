@@ -58,16 +58,6 @@ gtf <- args[3]
 organism <- args[4]
 
 
-if(organism %in% names(databases)){
-  dtb <- databases[[organism]][[1]]
-  ids <- databases[[organism]][[2]]
-  names(dtb)<-NULL
-  source("https://bioconductor.org/biocLite.R")
-  biocLite(pkgs = c("Biobase","AnnotationDbi",dtb),ask = FALSE)
-  library(Biobase)
-  library(AnnotationDbi)
-  library(dtb,character.only = TRUE)
-}
 
 library(data.table)
 library(DESeq2)
@@ -180,90 +170,99 @@ if("tpm" %in% i) {
 
 if("deseq" %in% i){
   dds <- DESeq(dds)
-  if(length(args)==5){
-    res <- results(dds)
-  }
-  else{
-    res <- results(dds,contrast=c(args[5:7]))
-  }
   
-  res <- res[order(res$padj),]
-  
-  print(mcols(res, use.names = TRUE))
-  cat("\n")
-  summary(res,alpha=0.05)
-  
-  res_file = gsub('DESeq_table.txt','DESeq_results.txt',args[1])
-  
-  res <- as.data.frame(res)
-  names(res) <- c("baseMean", "log2FoldChange","lfcSE","stat","pvalue","padj")
-  res$geneName <- rownames(res)
-  res <- res[,c("geneName","baseMean", "log2FoldChange","lfcSE","stat","pvalue","padj")]
-  
-  write.table(x = res,file = res_file,quote = FALSE,sep="\t",row.names = FALSE)
-  
-}
-
-if(organism %in% names(databases)){
   baseMeanPerLvl <- as.data.frame(sapply( levels(dds$condition), function(lvl) rowMeans( counts(dds,normalized=TRUE)[,dds$condition == lvl] ) ))
-  colnames(baseMeanPerLvl)<-paste0("sample_",1:length(colnames(baseMeanPerLvl)))
   baseMeanPerLvl$gene_id <- rownames(baseMeanPerLvl)
   baseMeanPerLvl <- as.data.table(baseMeanPerLvl)
-  
-  res_4_pete <- as.data.table(res[,c("geneName", "log2FoldChange","stat","pvalue","padj")])
-  
-  setnames(res_4_pete,names(res_4_pete),c("gene_id","log2(fold_change)","test_stat","p_value","q_value"))
   
   #  Create ensemblGenome object for storing Ensembl genomic annotation data
   library(refGenome)
   ens <- ensemblGenome() 
   
   wd <- getwd()
-  setwd(dirname(gtf))
+  setwd("/data/genome_assemblies/Homo_sapiens/")
   # read GTF file into ensemblGenome object
-  read.gtf(ens, basename(gtf))
+  read.gtf(ens, "Homo_sapiens.GRCh38.91.gtf")
   setwd(wd)
   
   # create table of genes
   my_gene <- as.data.table(getGenePositions(ens))
-  my_gene[,locus:=paste0(seqid,":",start,"-",end)]
-  
-  setkey(res_4_pete,gene_id)
-  setkey(baseMeanPerLvl,gene_id)
-  setkey(my_gene,gene_id)
-  
-  cols <- c("gene_id","locus",names(baseMeanPerLvl)[-length(baseMeanPerLvl)],"log2(fold_change)","test_stat","p_value","q_value")
-  res_4_pete<-res_4_pete[baseMeanPerLvl]
-  res_4_pete<-res_4_pete[my_gene]
-  res_4_pete<-res_4_pete[,cols,with=FALSE]
-  
-  res_4_pete[,significant:=ifelse(q_value<=0.05,"yes","no")]
-  
-  test<-res_4_pete$gene_id[1:5]
-  findannot <- FALSE
-  i=1
-  while(findannot==FALSE){
-    annot<-ids[i]
-    findannot<-any(test %in% keys(get(dtb),keytype = annot))
-    i=i+1
+  my_gene[,locus:=paste0(seqid,":",start,"_",end)]
+  if(any(!is.na(my_gene$gene_name))){
+    my_gene<- my_gene[,c("gene_id","gene_name","locus"),with=FALSE]
+  } else {
+    my_gene<- my_gene[,c("gene_id", "locus"),with=FALSE]
+    if(organism %in% names(databases)){
+      test<-my_gene$gene_id[1:5]
+      findannot <- FALSE
+      i=1
+      while(findannot==FALSE){
+        annot<-ids[i]
+        findannot<-any(test %in% keys(org.Hs.eg.db,keytype = annot))
+        i=i+1
+      }
+    }
+    all_names <- function(x){paste(x,sep = "_")}
+    geneSymbols <- unlist(mapIds(get(dtb), keys=my_gene$gene_id, column="SYMBOL", keytype=annot,multiVals=all_names))
+    geneSymbols2<-data.table(gene=geneSymbols,gene_id=names(geneSymbols))
+    setkey(geneSymbols2,gene_id)
+    setkey(baseMeanPerLvl,gene_id)
+    baseMeanPerLvl[geneSymbols2]
   }
   
-  all_names <- function(x){paste(x,sep = "_")}
+  setkey(baseMeanPerLvl,gene_id)
+  setkey(my_gene,gene_id)
+  baseMeanPerLvl<- baseMeanPerLvl[my_gene]
   
-  geneSymbols <- unlist(mapIds(get(dtb), keys=res_4_pete$gene_id, column="SYMBOL", keytype=annot,multiVals=all_names))
+  comparisons <- combn(levels(dds$condition),2)
   
-  geneSymbols2<-data.table(gene=geneSymbols,gene_id=names(geneSymbols))
-  setkey(geneSymbols2,gene_id)
+  if(length(args)==5){
+    comparisons <- combn(levels(dds$condition),2)
+  }
+  else{
+    comparisons <- matrix(args[6:7],nrow = 2)
+  }
   
-  res_4_pete<-geneSymbols2[res_4_pete]
+  i=0
+  for(c in 1:dim(comparisons)[2]){
+    print(i)
+    comp <- comparisons[,c]
+    res <- results(dds,contrast = c(args[5], comp))
+    baseMean2Lvls <- baseMeanPerLvl[,c("gene_id","gene_name","locus",comp),with=FALSE]
+    res <- res[order(res$padj),]
+    
+    res <- as.data.frame(res)
+    names(res) <- c("baseMean", "log2FoldChange","lfcSE","stat","pvalue","padj")
+    res$gene_id <- rownames(res)
+    res <- res[,c("gene_id","baseMean", "log2FoldChange","lfcSE","stat","pvalue","padj")]
+    
+    rownames(res)<-NULL
+    head(res)
+    res_4_peat <- as.data.table(res[,c("gene_id", "log2FoldChange","stat","pvalue","padj")])
+    
+    setnames(res_4_peat,names(res_4_peat),c("gene_id","log2(fold_change)","test_stat","p_value","q_value"))
+    setkey(res_4_peat,gene_id)
+    
+    res_4_peat<-res_4_peat[baseMean2Lvls]
+    res_4_peat[,significant:=ifelse(q_value<=0.05,"yes","no")]
+    res_4_peat[,test_id:=gene_id]
+    res_4_peat[,sample_1:=comp[1]]
+    res_4_peat[,sample_2:=comp[2]]
+    res_4_peat[,status:=ifelse(!is.na(p_value),"OK","NOTEST")]
+    setnames(res_4_peat,c("gene_name",comp),c("gene","value_1","value_2"))
+    res_4_peat <- res_4_peat[,c("test_id","gene_id","gene","locus","sample_1", "sample_2", "status", "value_1","value_2", "log2(fold_change)", "test_stat", "p_value", "q_value", "significant"), with=FALSE]
+    res_4_peat<-res_4_peat[order(p_value)]
+    if(i==0){
+      res_4_peat_comb<-res_4_peat
+    } else {
+      res_4_peat_comb<-rbind(res_4_peat_comb,res_4_peat)
+    }
+    i<-i+1
+  }
+  res_file <-gsub('table.txt','results_4_peat.txt',args[1])
   
-  res_4_pete[,test_id:=gene_id]
+  write.table(x = res_4_peat_comb,file = res_file,quote = FALSE,sep="\t",row.names = FALSE)
   
-  res_4_pete<-res_4_pete[order(p_value)]
-  res_4_pete <- res_4_pete[,c("test_id","gene_id","gene","locus","sample_1", "sample_2", "log2(fold_change)", "test_stat", "p_value", "q_value", "significant"), with=FALSE]
-  
-  res_4_pete_file = gsub('DESeq_table.txt','DESeq_results_4_pete.txt',args[1])
-  write.table(x = res_4_pete,file = res_4_pete_file,quote = FALSE,sep="\t",row.names = FALSE)
 }
 
 sessionInfo_file <-gsub('DESeq_table.txt','sessionInfo.txt',args[1])
