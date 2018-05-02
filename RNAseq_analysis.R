@@ -201,12 +201,20 @@ if("deseq" %in% i){
   } else {
     my_gene<- my_gene[,c("gene_id", "locus"),with=FALSE]
     if(organism %in% names(databases)){
+      dtb <- databases[[organism]][[1]]
+      ids <- databases[[organism]][[2]]
+      names(dtb)<-NULL
+      source("https://bioconductor.org/biocLite.R")
+      biocLite(pkgs = c("Biobase","AnnotationDbi",dtb),ask = FALSE)
+      library(Biobase)
+      library(AnnotationDbi)
+      library(dtb,character.only = TRUE)
       test<-my_gene$gene_id[1:5]
       findannot <- FALSE
       i=1
       while(findannot==FALSE){
         annot<-ids[i]
-        findannot<-any(test %in% keys(org.Hs.eg.db,keytype = annot))
+        findannot<-any(test %in% keys(get(dtb),keytype = annot))
         i=i+1
       }
     }
