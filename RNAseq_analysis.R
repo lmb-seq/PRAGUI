@@ -171,6 +171,14 @@ if("tpm" %in% i) {
 if("deseq" %in% i){
   dds <- DESeq(dds)
   
+  nc <- as.data.frame(counts(dds,normalized=TRUE))
+  nc$gene_id <- rownames(nc)
+  nc<- nc[,c(colnames(nc)[length(colnames(nc))],colnames(nc)[-length(colnames(nc))])]
+  
+  nc_file <-gsub('_table.txt','_norm_read_counts.txt',args[1])
+  
+  write.table(x = nc,file = nc_file,quote = FALSE,sep="\t",row.names = FALSE)
+  
   baseMeanPerLvl <- as.data.frame(sapply( levels(dds$condition), function(lvl) rowMeans( counts(dds,normalized=TRUE)[,dds$condition == lvl] ) ))
   baseMeanPerLvl$gene_id <- rownames(baseMeanPerLvl)
   baseMeanPerLvl <- as.data.table(baseMeanPerLvl)
