@@ -188,9 +188,9 @@ if("deseq" %in% i){
   ens <- ensemblGenome() 
   
   wd <- getwd()
-  setwd("/data/genome_assemblies/Homo_sapiens/")
+  setwd(dirname(gtf))
   # read GTF file into ensemblGenome object
-  read.gtf(ens, "Homo_sapiens.GRCh38.91.gtf")
+  read.gtf(ens, basename(gtf))
   setwd(wd)
   
   # create table of genes
