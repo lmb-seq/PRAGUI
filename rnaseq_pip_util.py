@@ -171,7 +171,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
     for f in fastq_paths:
       f0 = os.path.expanduser(f)
       f = os.path.basename(f)
-      if 'fq.gz' in f:
+      if f[-5:] == 'fq.gz':
         f=f.split(".")
         f = f[:-2]
         f = '.'.join(f)
@@ -187,6 +187,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
         fastq_paths2.append(f0)
       trimmed_fq.append(trimmed_filename)
       fastq_dirs.append(d)
+  
   
   # Run Trim_galore followed by fastqc
   if fastq_paths2 != []:
@@ -267,6 +268,8 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
     else:
       
       util.info('Running paired-end mode...')
+      
+      util.info(trimmed_fq)
       
       trimmed_fq_r1 = list(filter(lambda x:pair_tags[0] in x, trimmed_fq)) # grep for python3
       trimmed_fq_r2 = list(filter(lambda x:pair_tags[1] in x, trimmed_fq))
