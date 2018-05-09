@@ -325,7 +325,7 @@ def read_count_htseq(bam_files,genome_gtf,stranded=False):
 def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism, contrast='condition', levels=None):
   
   if organism not in ['human', 'mouse', 'worm', 'fly', 'yeast', 'zebrafish']:
-    organism = None
+    organism = "None"
     util.info('No recognised organism provided...')
   else:
     util.info('User provided recognised organism. Using %s genes names in differential analysis output...' % organism)
