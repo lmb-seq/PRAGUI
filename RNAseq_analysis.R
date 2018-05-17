@@ -217,13 +217,15 @@ if("deseq" %in% i){
         findannot<-any(test %in% keys(get(dtb),keytype = annot))
         i=i+1
       }
+      all_names <- function(x){paste(x,sep = "_")}
+      geneSymbols <- unlist(mapIds(get(dtb), keys=my_gene$gene_id, column="SYMBOL", keytype=annot,multiVals=all_names))
+      geneSymbols2<-data.table(gene_name=geneSymbols,gene_id=names(geneSymbols))
+      setkey(geneSymbols2,gene_id)
+      setkey(baseMeanPerLvl,gene_id)
+      baseMeanPerLvl <- baseMeanPerLvl[geneSymbols2]
+    } else {
+      baseMeanPerLvl[,gene_name:=NA]
     }
-    all_names <- function(x){paste(x,sep = "_")}
-    geneSymbols <- unlist(mapIds(get(dtb), keys=my_gene$gene_id, column="SYMBOL", keytype=annot,multiVals=all_names))
-    geneSymbols2<-data.table(gene=geneSymbols,gene_id=names(geneSymbols))
-    setkey(geneSymbols2,gene_id)
-    setkey(baseMeanPerLvl,gene_id)
-    baseMeanPerLvl[geneSymbols2]
   }
   
   setkey(baseMeanPerLvl,gene_id)
