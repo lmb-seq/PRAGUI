@@ -257,6 +257,10 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
           cmdArgs_se.append(f)
           util.call([ALIGNER_STAR,'--version'],stdout=util.LOG_FILE_OBJ)
           util.call(cmdArgs_se)
+          star_log = '%s_Log.final.out' % bam
+          util.logging('Printing %s' % star_log)
+          shutil.copyfileobj(open('./Log.final.out', 'r'), util.LOG_FILE_OBJ)
+          os.rename('./Log.final.out',star_log)
           if mapq > 0 :
             util.call(['samtools','--version'],stdout=util.LOG_FILE_OBJ)
             rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
@@ -365,7 +369,7 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
   exploratory_analysis_plots = append_to_file_name(deseq_head, '_sclust.pdf')
   TPMs = append_to_file_name(deseq_head,'_tpm.txt')
   DESeq_summary = append_to_file_name(deseq_head,'_DESeq_summary.txt')
-  DESeq_results = append_to_file_name(deseq_head,'_DESeq_results.txt')
+  DESeq_results = append_to_file_name(deseq_head,'_DESeq_results_4_peat.txt')
   
   i=[]
   
@@ -416,7 +420,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
     if '--library-type' in cuff_opt:
       ind2 = cuff_opt.index('--library-type') + 1
       library_type = ['--library-type',cuff_opt[ind2]]
-    is_gtf_specified = '-g' in cuff_opt or '–GTF-guide' in cuff_opt
+    is_gtf_specified = '-g' in cuff_opt or '-GTF-guide' in cuff_opt
     if '-g' in cuff_opt:
       ind3 = cuff_opt.index('-g')+1
       cuff_gtf_file = ['-g',cuff_opt[ind3]]
@@ -596,10 +600,15 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
   util.info('Plot saved in %s as exploratory_analysis_plots.pdf...' % dir_cdiff)
 
 
+def run_multiqc(multiqc=True):
+  if multiqc:
+    util.info('Running multiqc on working directory...')
+    util.call(['multiqc','.'])
+
 def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
                        skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER,organism=None, is_single_end=False, pair_tags=['r_1','r_2'],
                        star_index=None,star_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded=False,contrast='condition',levels=None,
-                       cuff_opt=None, cuff_gtf=False,cuffnorm=False, python_command=None,q=False,log=False):
+                       cuff_opt=None, cuff_gtf=False,cuffnorm=False, multiqc=True,python_command=None,q=False,log=False):
   
   util.QUIET   = q
   util.LOGGING = log
@@ -656,8 +665,8 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
   if analysis_type == 'Cufflinks':
     Cufflinks_analysis(bam_files=bam_files, samples_csv=samples_csv, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
                        genome_fasta=genome_fasta, geneset_gtf=geneset_gtf,cuffnorm=cuffnorm)
-    
 
+  run_multiqc(multiqc=multiqc)
 
 
 if __name__ == '__main__':
@@ -738,6 +747,9 @@ if __name__ == '__main__':
   arg_parse.add_argument('-cuffnorm', default=False, action='store_true',
                          help='Specify whether Cuffnorm should be executed besides Cuffdiff.')
   
+  arg_parse.add_argument('-disable_multiqc', default=False, action='store_true',
+                         help='Specify whether to disable multiqc run. Defaults to False.')
+  
   arg_parse.add_argument('-q', default=False, action='store_true',
                          help='Sets quiet mode to supress on-screen reporting.')
   
@@ -768,6 +780,7 @@ if __name__ == '__main__':
   cuff_opt      = args['cuff_opt']
   cuff_gtf      = args['cuff_gtf']
   cuffnorm      = args['cuffnorm']
+  multiqc       = not args['disable_multiqc']
   
   # Reporting handled by cross_fil_util.py (submodule)
   q   = args['q']
@@ -780,7 +793,7 @@ if __name__ == '__main__':
                      analysis_type=analysis_type, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args,
                      aligner=aligner, organism=organism,is_single_end=is_single_end, pair_tags=pair_tags,star_index=star_index,
                      star_args=star_args,num_cpu=num_cpu,mapq=mapq,stranded=stranded,contrast=contrast,levels=levels,
-                     cuff_opt=cuff_opt, cuff_gtf=cuff_gtf,cuffnorm=cuffnorm, python_command=python_command,q=q,log=log)
+                     cuff_opt=cuff_opt, cuff_gtf=cuff_gtf,cuffnorm=cuffnorm, multiqc=multiqc,python_command=python_command,q=q,log=log)
   
 
       
