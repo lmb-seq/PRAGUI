@@ -15,7 +15,7 @@ import cell_bio_util as util
 
 def test(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
                        skipfastqc=False, fastqc_args=None, aligner=rnapip.DEFAULT_ALIGNER, is_single_end=False, pair_tags=['r_1','r_2'],
-                       star_index=None,star_args=None,num_cpu=8,mapq=20,stranded=False,contrast='condition',levels=None,
+                       star_index=None,star_args=None,num_cpu=8,mapq=20,stranded=False,contrast='condition',contrast_levels=None,organism=None,disable_multiqc=False,
                        cuff_opt=None, cuff_gtf=False,cuffnorm=False, python_command=None,q=False,log=False):
   print(locals())
 
@@ -83,7 +83,9 @@ def submit(btn):
       organism = app.getOptionBox('organism')
       args['organism'] = organism
       checkBox = app.getAllCheckBoxes()
-      if 'qsub' in checkBox:
+      print(checkBox)
+      #if 'qsub' in checkBox:
+      if checkBox['qsub'] == True:
         temp = util.get_rand_string(5) + ".sh"
         tempObj = open(temp,'w')
         del(checkBox['qsub'])
@@ -116,10 +118,14 @@ def submit(btn):
         app.infoBox('Info','Running Pipeline via qsub on the LMB cluster.')
         os.remove(temp)
       else:
-      #  del(checkBox['qsub'])
+        del(checkBox['qsub'])
         args.update(checkBox)
+        for old_key, new_key in [['contrast_levels','levels'],['disable_multiqc','multiqc']]:
+          replace_key(args,old_key,new_key)
+        if not args['is_single_end']:
+          args['pair_tags']=args['pair_tags'].split(' ')
         rnapip.rnaseq_diff_caller(**args)
-      #test(**args)
+        # test(**args)
 
 
 def launch(win):
