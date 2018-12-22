@@ -69,7 +69,7 @@ def submit(btn):
       app.addLabelEntry('pair_tags', 3, 1)
       app.setLabelTooltip('pair_tags','Substrings/tags which are the only differences between paired FASTQ file paths. e.g.: r_1 r_2.')  
     else:
-      if 'num_cpu' in args:
+      if 'num_cpu' in args: #and isinstance(args['num_cpu'],float):
         args['num_cpu'] = int(args['num_cpu'])
       for key, val in args_copy.items():
         if val in ['',0]:
@@ -83,10 +83,9 @@ def submit(btn):
       organism = app.getOptionBox('organism')
       args['organism'] = organism
       checkBox = app.getAllCheckBoxes()
-      print(checkBox)
       #if 'qsub' in checkBox:
       if checkBox['qsub'] == True:
-        temp = util.get_rand_string(5) + ".sh"
+        temp = 'job_' + util.get_rand_string(5) + ".sh"
         tempObj = open(temp,'w')
         del(checkBox['qsub'])
         # args.update(checkBox)
@@ -94,6 +93,8 @@ def submit(btn):
           replace_key(args,old_key,new_key)
         command = ''
         for key, item in args.items():
+          if isinstance(item, float):
+            item = int(item)
           if key == 'samples_csv':
             samples_csv = item
           elif key == 'genome_fasta':

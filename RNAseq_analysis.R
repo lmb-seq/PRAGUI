@@ -98,7 +98,7 @@ if("ea" %in% i ){
   
   plot_name <- gsub('DESeq_table.txt','sclust.pdf',args[1])
   
-  ppca <- plotPCA(rld,intgroup=arg[5])
+  ppca <- plotPCA(rld,intgroup=args[5])
 
 }
 
