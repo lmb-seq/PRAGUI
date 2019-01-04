@@ -1,0 +1,12 @@
+python3 ../scripts/rnaseq_pip_util.py \
+ ~/Projects/RNAseq_pipeline/toy_data/sampleTable_AX6130_AX6186_fq_old.csv \
+ /home/paulafp/Documents/temp/WS255_WBcel235/uncompressed_fa/c_elegans.PRJNA13758.WS255.genomic.fa \
+ -analysis_type 'Cufflinks' \
+ -genome_gtf /home/paulafp/Documents/temp/WS255_WBcel235/c_elegans.PRJNA13758.WS255.canonical_geneset.gtf \
+ -trim_galore '-a AGATCGGAAGAGC' \
+ -star_index ./star-genome/ \
+ -cpu 24 \
+ -se \
+ -cuff_opt '--overlap-radius 1 --library-type fr-firststrand' \
+ -cuff_gtf
+ 

@@ -98,7 +98,7 @@ if("ea" %in% i ){
   
   plot_name <- gsub('DESeq_table.txt','sclust.pdf',args[1])
   
-  ppca <- plotPCA(rld,intgroup=arg[5])
+  ppca <- plotPCA(rld,intgroup=args[5])
 
 }
 
@@ -168,6 +168,8 @@ if("tpm" %in% i) {
 
 # Differential Calling
 
+print(dim(combn(levels(dds[[args[5]]]),2)))
+
 if("deseq" %in% i){
   dds <- DESeq(dds)
   
@@ -179,9 +181,10 @@ if("deseq" %in% i){
   
   write.table(x = nc,file = nc_file,quote = FALSE,sep="\t",row.names = FALSE)
   
-  baseMeanPerLvl <- as.data.frame(sapply( levels(dds$condition), function(lvl) rowMeans( counts(dds,normalized=TRUE)[,dds$condition == lvl] ) ))
+  baseMeanPerLvl <- as.data.frame(sapply( levels(dds[[args[5]]]), function(lvl) rowMeans( counts(dds,normalized=TRUE)[,dds[[args[5]]] == lvl] ) ))
   baseMeanPerLvl$gene_id <- rownames(baseMeanPerLvl)
   baseMeanPerLvl <- as.data.table(baseMeanPerLvl)
+  print(head(baseMeanPerLvl))
   
   #  Create ensemblGenome object for storing Ensembl genomic annotation data
   library(refGenome)
@@ -248,10 +251,11 @@ if("deseq" %in% i){
   setkey(my_gene,gene_id)
   baseMeanPerLvl<- baseMeanPerLvl[my_gene]
   
-  #comparisons <- combn(levels(dds$condition),2)
+  #comparisons <- combn(levels(dds[[args[5]]]),2)
   
   if(length(args)==5){
-    comparisons <- combn(levels(dds$condition),2)
+    # comparisons <- combn(levels(dds[[args[5]]]),2)
+    comparisons <- combn(levels(dds[[args[5]]]),2)
   }
   else{
     comparisons <- matrix(args[6:7],nrow = 2)

@@ -4,8 +4,13 @@ import csv
 import os
 import shutil
 import uuid
+import sys
 
-import cross_fil_util as util
+current_path = os.path.realpath(__file__)
+current_path = os.path.dirname(current_path) + '/cell_bio_util'
+
+sys.path.append(current_path)
+import cell_bio_util as util
 
 
 PROG_NAME = 'CAT_FASTQ'

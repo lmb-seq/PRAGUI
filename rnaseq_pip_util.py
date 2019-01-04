@@ -319,6 +319,16 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
   
   return(bam_files)
 
+def sort_bam_parallel(bam_list,num_cpu):
+  def sort_bam(bam):
+    bam_out = os.path.dirname(bam) + '/' + os.path.basename(bam) + '_sorted.bam'
+    if exists_skip(bam_out):
+      cmdArgs = ['samtools','sort','-n',bam]
+      util.call(cmdArgs,stdout=bam_out)
+    return(bam_out)
+  common_args = []
+  sorted_bam_list = util.parallel_split_job(sort_bam,bam_list,common_args, num_cpu)
+  return(sorted_bam_list)
 
 def read_count_htseq(bam_files,genome_gtf,stranded=False):
   rc_file_list = []
@@ -338,6 +348,13 @@ def read_count_htseq(bam_files,genome_gtf,stranded=False):
       util.call(cmdArgs,stdout=fileObj)
       fileObj.close()
   return(rc_file_list)
+
+def read_count_htseq_parallel(bam_files,genome_gtf,num_cpu, stranded=False):
+  common_args = [genome_gtf,stranded]
+  bam_files = [ [x] for x in bam_files ]
+  counts = util.parallel_split_job(read_count_htseq,bam_files,common_args, num_cpu)
+  return(counts)
+
 
 
 def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism, contrast='condition', levels=None):
@@ -379,6 +396,10 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
     
     np.savetxt(fname=csv_deseq_name,X=csv_deseq_wh,delimiter='\t',fmt='%s')
   
+  # Set default condition to third column in header
+  if contrast is None:
+    contrast = header[2]
+
   # Gene Expression analysis using R
   exploratory_analysis_plots = append_to_file_name(deseq_head, '_sclust.pdf')
   TPMs = append_to_file_name(deseq_head,'_tpm.txt')
@@ -441,6 +462,8 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
     if '-GTF-guide' in cuff_opt:
       ind3 = cuff_opt.index('-GTF-guide')+1
       cuff_gtf_file = ['-g',cuff_opt[ind3]]
+  else:
+    is_gtf_specified = False
   
   # Create assemblies file needed for cuffmerge    
   assemblies = out_folder + 'assembly_GTF_list.txt'
@@ -671,7 +694,9 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
   
   if analysis_type == 'DESeq':
     # Generate Count matrix with HTSeq
-    rc_file_list = read_count_htseq(bam_files = bam_files,genome_gtf=genome_gtf,stranded=stranded)
+    sorted_bam_list = sort_bam_parallel(bam_list = bam_files, num_cpu=num_cpu)
+    counts = read_count_htseq_parallel(bam_files=sorted_bam_list,genome_gtf=genome_gtf,stranded=stranded,num_cpu=num_cpu)
+    rc_file_list = [x[0] for x in counts]
     # DESeq and exploratory analysis
     DESeq_analysis(rc_file_list=rc_file_list, header=header, csv=csv, samples_csv=samples_csv,
                    geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels)
@@ -746,7 +771,7 @@ if __name__ == '__main__':
   arg_parse.add_argument('-stranded', default=False, action='store_true',
                          help='Input strand-specific protocol, otherwise defaults to non-strand-specific protocol.')
   
-  arg_parse.add_argument('-contrast', default='condition',
+  arg_parse.add_argument('-contrast', # default='condition',
                          help='Set column from SAMPLES_CSV file to be used as contrast by DESeq2 otherwise defaults to the third column')
   
   arg_parse.add_argument('-contrast_levels', nargs=2, default=None,
