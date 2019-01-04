@@ -49,9 +49,9 @@ if(!"refGenome" %in% packages){
 
 databases <- list(human=list("org.Hs.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SYMBOL","UCSCKG")),
                   mouse=list("org.Mm.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","MGI","REFSEQ","SYMBOL")),
-                  worm=list("org.Ce.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","MGI","REFSEQ","SYMBOL","WORMBASE")),
+                  worm=list("org.Ce.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SYMBOL","WORMBASE")),
                   fly=list("org.Dm.eg.db"), # NEEDS TO BE COMPLETED!!
-                  zebrafish=list("org.Dm.eg.db"), # NEEDS TO BE COMPLETED!!
+                  zebrafish=list("org.Dr.eg.db"), # NEEDS TO BE COMPLETED!!
                   yeast=list("org.Sc.sgd.db")) # NEEDS TO BE COMPLETED!!
 
 gtf <- args[3]
@@ -97,8 +97,8 @@ if("ea" %in% i ){
   library("RColorBrewer")
   
   plot_name <- gsub('DESeq_table.txt','sclust.pdf',args[1])
-
-  ppca <- plotPCA(rld)
+  
+  ppca <- plotPCA(rld,intgroup=arg[5])
 
 }
 
@@ -204,12 +204,28 @@ if("deseq" %in% i){
       dtb <- databases[[organism]][[1]]
       ids <- databases[[organism]][[2]]
       names(dtb)<-NULL
-      source("https://bioconductor.org/biocLite.R")
-      biocLite(pkgs = c("Biobase","AnnotationDbi",dtb),ask = FALSE)
+      inst_pkgs <- c()
+      if(!"Biobase" %in% packages){
+        cat("Biobase has not been installed...\n")
+        inst_pkgs <- c(inst_pkgs,"Biobase")
+        }
+      if(!"AnnotationDbi" %in% packages){
+        cat("AnnotationDbi has not been installed...\n")
+        inst_pkgs <- c(inst_pkgs,"Biobase")
+        }
+      if(!dtb %in% packages){
+        cat(paste0(dtb," has not been installed...\n"))
+        inst_pkgs <- c(inst_pkgs,dtb)
+        }
+      if(length(inst_pkgs)>0){
+        cat(paste0("Installing ",inst_pkgs, "...\n"))
+        source("https://bioconductor.org/biocLite.R")
+        biocLite(pkgs = inst_pkgs,ask = FALSE)
+        }
       library(Biobase)
       library(AnnotationDbi)
       library(dtb,character.only = TRUE)
-      test<-my_gene$gene_id[1:5]
+      test <- my_gene$gene_id
       findannot <- FALSE
       i=1
       while(findannot==FALSE){
@@ -232,7 +248,7 @@ if("deseq" %in% i){
   setkey(my_gene,gene_id)
   baseMeanPerLvl<- baseMeanPerLvl[my_gene]
   
-  comparisons <- combn(levels(dds$condition),2)
+  #comparisons <- combn(levels(dds$condition),2)
   
   if(length(args)==5){
     comparisons <- combn(levels(dds$condition),2)

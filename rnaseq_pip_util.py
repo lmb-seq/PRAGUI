@@ -171,10 +171,14 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
     for f in fastq_paths:
       f0 = os.path.expanduser(f)
       f = os.path.basename(f)
-      if f[-5:] == 'fq.gz':
-        f=f.split(".")
-        f = f[:-2]
-        f = '.'.join(f)
+      if '.gz' in f:
+        f = f.rstrip('.gz')
+      if '.fq' in f or '.fastq' in f:
+        f = f.rstrip('.fastq')        
+#      if f[-5:] == 'fq.gz' or f[-8:] == 'fastq.gz':
+#        f=f.split(".")
+#        f = f[:-2]
+#        f = '.'.join(f)
       if pair_tags[0] in f:
         trimmed_filename = od + '/' + f + '_val_1.fq.gz'
         d = os.path.dirname(f0)             # directory where fastq file is stored
@@ -182,7 +186,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
         trimmed_filename = od + '/' + f + '_val_2.fq.gz'
       else:
         util.critical('Paired read tag not found... Exiting...')
-      
+
       if exists_skip(trimmed_filename):
         fastq_paths2.append(f0)
       trimmed_fq.append(trimmed_filename)
@@ -200,6 +204,16 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
     util.call(cmdArgs)
   
   return(trimmed_fq, fastq_dirs)
+
+
+def split_pe_files(fq_list,pair_tags=['r_1','r_2']):
+  fq_r1 = list(filter(lambda x:pair_tags[0] in x, fq_list)) # grep for python3
+  fq_r2 = list(filter(lambda x:pair_tags[1] in x, fq_list))
+
+  if len(fq_r1) != len(fq_r2):
+    util.critical('Number of fq files differs for read1 and read2... Exiting...')
+    
+  return([fq_r1,fq_r2])
 
 
 def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_args=None, num_cpu=util.MAX_CORES,
@@ -273,13 +287,8 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
       
       util.info('Running paired-end mode...')
       
-      util.info(trimmed_fq)
-      
-      trimmed_fq_r1 = list(filter(lambda x:pair_tags[0] in x, trimmed_fq)) # grep for python3
-      trimmed_fq_r2 = list(filter(lambda x:pair_tags[1] in x, trimmed_fq))
-      
-      if len(trimmed_fq_r1) != len(trimmed_fq_r2):
-        util.critical('Number of fq files differs for read1 and read2... Exiting...')
+      trimmed_fq_r1, trimmed_fq_r2 = split_pe_files(trimmed_fq,pair_tags=pair_tags)
+      util.info(trimmed_fq_r1)
       
       for i in range(0,len(trimmed_fq_r1)):
         fo = os.path.basename(trimmed_fq_r1[i])
@@ -290,11 +299,16 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
           bam = '%s.pe.sorted.out.bam' % fo
         
         bam_files.append(bam)
+
         if exists_skip(bam):
           cmdArgs_pe = list(cmdArgs)
           cmdArgs_pe += [trimmed_fq_r1[i],trimmed_fq_r2[i]]
           util.call([ALIGNER_STAR,'--version'],stdout=util.LOG_FILE_OBJ)
           util.call(cmdArgs_pe)
+          star_log = '%s_Log.final.out' % bam
+          util.logging('Printing %s' % star_log)
+          shutil.copyfileobj(open('./Log.final.out', 'r'), util.LOG_FILE_OBJ)
+          os.rename('./Log.final.out',star_log)
           if mapq > 0 :
             util.call(['samtools','--version'],stdout=util.LOG_FILE_OBJ)
             rm_low_mapq('./Aligned.sortedByCoord.out.bam',bam,mapq) # Remove reads with quality below mapq
