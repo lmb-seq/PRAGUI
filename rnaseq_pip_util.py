@@ -330,12 +330,13 @@ def sort_bam_parallel(bam_list,num_cpu):
   sorted_bam_list = util.parallel_split_job(sort_bam,bam_list,common_args, num_cpu)
   return(sorted_bam_list)
 
-def read_count_htseq(bam_files,genome_gtf,stranded=False):
+def read_count_htseq(bam_files,genome_gtf,stranded='no'):
   rc_file_list = []
-  if stranded:
-    stranded = '--stranded=yes'
-  else:
-    stranded = '--stranded=no'
+  stranded = '--stranded=' + stranded
+#  if stranded:
+#    stranded = '--stranded=yes'
+#  else:
+#    stranded = '--stranded=no'
   for f in bam_files:
     rc_file = '%s_count_table.txt' % f
     rc_file_list.append(rc_file)
@@ -349,7 +350,7 @@ def read_count_htseq(bam_files,genome_gtf,stranded=False):
       fileObj.close()
   return(rc_file_list)
 
-def read_count_htseq_parallel(bam_files,genome_gtf,num_cpu, stranded=False):
+def read_count_htseq_parallel(bam_files,genome_gtf,num_cpu, stranded='no'):
   common_args = [genome_gtf,stranded]
   bam_files = [ [x] for x in bam_files ]
   counts = util.parallel_split_job(read_count_htseq,bam_files,common_args, num_cpu)
@@ -644,7 +645,7 @@ def run_multiqc(multiqc=True):
 
 def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
                        skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER,organism=None, is_single_end=False, pair_tags=['r_1','r_2'],
-                       star_index=None,star_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded=False,contrast='condition',levels=None,
+                       star_index=None,star_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded='no',contrast='condition',levels=None,
                        cuff_opt=None, cuff_gtf=False,cuffnorm=False, multiqc=True,python_command=None,q=False,log=False):
   
   util.QUIET   = q
@@ -768,8 +769,8 @@ if __name__ == '__main__':
   arg_parse.add_argument('-se', default=False, action='store_true',
                          help='Input reads are single-end data, otherwise defaults to paired-end.')
   
-  arg_parse.add_argument('-stranded', default=False, action='store_true',
-                         help='Input strand-specific protocol, otherwise defaults to non-strand-specific protocol.')
+  arg_parse.add_argument('-stranded', default=['no','yes','reverse'][0], type=str,
+                         help='Specify strand-specific protocol (same-strand reads (yes), reverse-strand reads (reverse) or non-strand-specific reads (no)), otherwise defaults to non-strand-specific protocol.')
   
   arg_parse.add_argument('-contrast', # default='condition',
                          help='Set column from SAMPLES_CSV file to be used as contrast by DESeq2 otherwise defaults to the third column')
