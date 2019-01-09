@@ -78,6 +78,8 @@ def submit(btn):
       analysis_type = app.getOptionBox('analysis_type')
       args['analysis_type'] = analysis_type
       library_type = app.getOptionBox('Library type')
+      stranded = app.getOptionBox('stranded')
+      args['stranded'] = stranded
       if library_type == 'single-end':
         args['is_single_end'] = True
       organism = app.getOptionBox('organism')
@@ -104,14 +106,14 @@ def submit(btn):
               k_i = " -%s " % key
               command = command + k_i
           else:
-            if key in ['trim_galore','fastqc_args','star_args','cuff_opt']:
+            if key in ['trim_galore','fastqc_args','star_args','cuff_opt','stranded']:
               item = '\"%s\"' % item
             k_i = '-%s %s ' % (key,item)
             command = command + k_i
         for key, item in checkBox.items():
           if item:
             command = command + " -%s " % key
-        command = '/lmb/home/paulafp/applications/anaconda3/bin/python3 /lmb/home/paulafp/applications/RNAseq_pipeline//rnaseq_pip_util.py %s %s %s ' % (samples_csv,genome_fasta,command)
+        command = 'module load python3\nmodule load multiqc\npython3 /net/nfs1/public/genomics/PRAGUI/rnaseq_pip_util.py %s %s %s ' % (samples_csv,genome_fasta,command)
         tempObj.write(command)
         tempObj.close()
         qsubArgs = ['qsub','-cwd','-pe','smp','4','-j','y','-V',temp]
