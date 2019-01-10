@@ -188,7 +188,7 @@ def create_csv(btn):
 
 csv_created = False
 
-app.addLabel('title', 'RNAseq Pipeline')
+app.addLabel('title', 'PRAGUI')
 app.setLabelBg('title','lightblue')
 # app.addLabelNumericEntry('samples_csv')
 # app.setEntryDefault('samples_csv')
