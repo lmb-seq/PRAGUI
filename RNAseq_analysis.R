@@ -50,9 +50,9 @@ if(!"refGenome" %in% packages){
 databases <- list(human=list("org.Hs.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SYMBOL","UCSCKG")),
                   mouse=list("org.Mm.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","MGI","REFSEQ","SYMBOL")),
                   worm=list("org.Ce.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SYMBOL","WORMBASE")),
-                  fly=list("org.Dm.eg.db"), # NEEDS TO BE COMPLETED!!
-                  zebrafish=list("org.Dr.eg.db"), # NEEDS TO BE COMPLETED!!
-                  yeast=list("org.Sc.sgd.db")) # NEEDS TO BE COMPLETED!!
+                  fly=list("org.Dm.eg.db", c("ACCNUM","ALIAS","ENSEMBL", "ENTREZID","FLYBASE","GENENAME","REFSEQ","SYMBOL")), 
+                  zebrafish=list("org.Dr.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SYMBOL","ZFIN")),
+                  yeast=list("org.Sc.sgd.db",c("ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SGD"))) 
 
 gtf <- args[3]
 organism <- args[4]
