@@ -64,12 +64,12 @@ def new_dir(new_dir):
   
 def report_cuff_version(CUFF_PROG):
   cufflinks_vs_obj = open('cufflinks_version_control.txt','a')
-  util.call(CUFF_PROG,stderr=cufflinks_vs_obj)
+  #util.call(CUFF_PROG,stderr=cufflinks_vs_obj)
   cufflinks_vs_obj.close()
   cufflinks_vs_obj = open('cufflinks_version_control.txt','r')
   cufflinks_vs = cufflinks_vs_obj.readline()
   cufflinks_vs_obj.close()
-  util.LOG_FILE_OBJ.write(cufflinks_vs)
+  #util.LOG_FILE_OBJ.write(cufflinks_vs)
   os.remove('cufflinks_version_control.txt')
 
 
