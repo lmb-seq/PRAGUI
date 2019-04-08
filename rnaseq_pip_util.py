@@ -12,6 +12,7 @@ import glob
 import numpy as np
 import shutil
 import HTSeq
+import re
 
 current_path = os.path.realpath(__file__)
 current_path = os.path.dirname(current_path) + '/cell_bio_util'
@@ -383,8 +384,8 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
     N = csv.shape[1] - 1
     
     csv_deseq = np.zeros((M,N))
-    csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references. 
-                                                 # It can have all the behaviours of python strings.
+    csv_deseq = np.array(csv_deseq,dtype=object)  # dtype=object provides an array of python object references. 
+                                                  # It can have all the behaviours of python strings.
     
     csv_deseq[:,0] = csv[:,0]
     csv_deseq[:,1] = np.array(rc_file_list)
@@ -409,13 +410,13 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
   
   i=[]
   
-  if exists_skip(exploratory_analysis_plots):  # Gene expression analysis has 3 steps.
-    i.append("ea")                             # These do not need to be repeated if they have
-  if exists_skip(TPMs):                        # already been run. Therefore, the script checks
-    i.append("tpm")                            # whether the output files have been generated
-  if exists_skip(DESeq_results):               # and stores a specific flag each time that's the case.
-    i.append("deseq")                          # The following R script checks which flags have been
-                                               # stored and thus knows which steps to skip (if any).
+  if exists_skip(exploratory_analysis_plots):   # Gene expression analysis has 3 steps.
+    i.append("ea")                              # These do not need to be repeated if they have
+  if exists_skip(TPMs):                         # already been run. Therefore, the script checks
+    i.append("tpm")                             # whether the output files have been generated
+  if exists_skip(DESeq_results):                # and stores a specific flag each time that's the case.
+    i.append("deseq")                           # The following R script checks which flags have been
+                                                # stored and thus knows which steps to skip (if any).
   if len(i) > 0:
     i = "_".join(i)
     
@@ -508,10 +509,10 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
           cmdArgs.append('-g')
           cmdArgs.append(geneset_gtf)
         else:
-           util.critical('Option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...')
+          util.critical('Option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...')
       cmdArgs.append(f)
       
-      util.call(cmdArgs,stderr='cufflinks_stderr.log')
+      util.call(cmdArgs,stderr='cufflinks_stderr.log', check=False)
       rm_lines('cufflinks_stderr.log',util.LOG_FILE_PATH)
       
       # Rename output files 
@@ -572,7 +573,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
       
   
   # Set list of replicates and conditions for both Cuffnorm and Cuffdiff
-  
+  '''
   reps = [cxb_list[0]]
   reps_list = []
   conds = list(set(csv[:,3]))
@@ -593,6 +594,40 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
   for reps in reps_list:
     reps = ','.join(reps)
     reps_list2.append(reps)
+  '''
+
+  # The above code within triple quotes is the original with the edit below
+  # Gurpreet's alternative method for list of replicates and conditions for Cuffnorm and Cuffdiff 
+  # (does not assume conditions in CSV file have been ordered together)
+  # Only enforces ordering with conditions, not with the individual replicates
+  # e.g. with conditions A and B, the replicates could be ordered A1,A2 B1,B2 or A2,A1 B2,B1
+
+  rep_dict = {}
+  conds_list = list(set(csv[:,3]))
+  conds = ','.join(conds_list)
+  sample_files_list = list(set(csv[:,1]))
+  for conds in conds_list:
+    rep_dict[conds] = []
+  
+  for rows in range(0, csv.shape[0]):
+    conds_check = csv[rows, 3]
+    files_check = csv[rows, 1]
+    for sample_files in sample_files_list:
+      file_name_pre1 = './{0}'.format(sample_files.split('/')[-1])
+      if files_check == sample_files:
+        file_name = file_name_pre1.split('.fq.gz')[0]
+        search_pattern = re.compile('^{}.*?$'.format(file_name))
+        search_results = list(filter(search_pattern.match, cxb_list))[0]
+        cxb_index = cxb_list.index('{0}'.format(search_results))
+        rep_dict[conds_check].append(cxb_list[cxb_index])
+  
+  reps = []
+  reps_list = []
+  for conditions in conds_list:
+    reps.append(rep_dict[conditions])
+  conds_str = ','.join(conds_list)
+  for conditions_2 in conds_list:
+    reps_list.append(','.join(rep_dict[conditions_2]))
   
   # Run Cuffnorm
   
@@ -606,10 +641,10 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
     cmdArgs = ['cuffnorm'] + basic_options[3:-1]
     cmdArgs.append(dir_cnorm)
     cmdArgs.append('-L')
-    cmdArgs.append(conds)
+    cmdArgs.append(conds_str)  # Changed for Gurpreet's edit
     cmdArgs.append(ofc2)
-    cmdArgs += reps_list2
-    util.call(cmdArgs,stderr='cuffnorm_stderr.log')
+    cmdArgs += reps_list       # Changed for Gurpreet's edit
+    util.call(cmdArgs,stderr='cuffnorm_stderr.log', check=False)
     rm_lines('cuffnorm_stderr.log',util.LOG_FILE_PATH)
 
   
@@ -625,10 +660,10 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
   cmdArgs = ['cuffdiff'] + basic_options[:-1]
   cmdArgs.append(dir_cdiff)
   cmdArgs.append('-L')
-  cmdArgs.append(conds)
+  cmdArgs.append(conds_str)  # Changed for Gurpreet's edit
   cmdArgs.append(ofc2)
-  cmdArgs += reps_list2
-  util.call(cmdArgs,stderr='cuffdiff_stderr.log')
+  cmdArgs += reps_list       # Changed for Gurpreet's edit
+  util.call(cmdArgs,stderr='cuffdiff_stderr.log', check=False)
   rm_lines('cuffdiff_stderr.log',util.LOG_FILE_PATH)
 
   # Run CummeRbund
