@@ -604,7 +604,6 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
 
   rep_dict = {}
   conds_list = list(set(csv[:,3]))
-  conds = ','.join(conds_list)
   sample_files_list = list(set(csv[:,1]))
   for conds in conds_list:
     rep_dict[conds] = []
