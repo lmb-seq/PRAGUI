@@ -24,7 +24,11 @@ app = gui()
 
 def replace_key(dic, old_key, new_key):
   if old_key in dic:
-    dic[new_key] = dic[old_key]
+    if old_key == 'disable_multiqc':
+      dic[new_key] = not dic[old_key]
+      # Going from "disable_multiqc" to "multiqc" reverses the logic of the boolean
+    else:
+      dic[new_key] = dic[old_key]
     del(dic[old_key])
     return(dic)
 
