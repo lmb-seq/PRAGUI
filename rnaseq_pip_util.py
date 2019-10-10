@@ -23,7 +23,6 @@ import cell_bio_util as util
 
 from readCsvFile import readCsvFile
 
-
 PROG_NAME = 'RNAseq Pipeline'
 DESCRIPTION = 'Process fastq files to RNAseq data analysis.'
 
@@ -46,8 +45,8 @@ def exists_skip(filename):
 def append_to_file_name(file_name,extension):
   new_file_name = file_name + extension
   return(new_file_name)
- 
-  
+
+
 def rm_low_mapq(in_file,out_file_name,mapq):
   cmdArgs=['samtools', 'view', '-bq',
           str(mapq), in_file]
@@ -55,7 +54,7 @@ def rm_low_mapq(in_file,out_file_name,mapq):
   util.call(cmdArgs,stdout=out_file)
   out_file.close()
 
-  
+
 def new_dir(new_dir):
   if not exists_skip(new_dir):
     new_dir = util.get_temp_path(new_dir)
@@ -63,7 +62,7 @@ def new_dir(new_dir):
   os.makedirs(new_dir,exist_ok = True) #,mode = 0o666)
   return(new_dir)
 
-  
+
 def report_cuff_version(CUFF_PROG):
   cufflinks_vs_obj = open('cufflinks_version_control.txt','a')
   #util.call(CUFF_PROG,stderr=cufflinks_vs_obj)
@@ -101,15 +100,15 @@ def parse_csv(samples_csv):
   header2 = header # Appears to be unused - Should this be removed?
   header = ['samplename','filename'] + header[3:]
   header = np.array(header)
-  
+
   csv = readCsvFile(filename=samples_csv,separator='\t',header=True) # returns numpy array
-  
+
   return(header,csv)
 
 
 def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=None, is_single_end=False, pair_tags=['r_1','r_2']):
   cmdArgs = ['trim_galore','--gzip']
-  
+
   fastq_paths2 = []
   trimmed_fq = []
   fastq_dirs = []
@@ -136,21 +135,20 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
   if skipfastqc is False:
     cmdArgs += ['-fastqc']
     if fastqc_args is not None:
-      cmdArgs += ['-fastqc_args', fastqc_args]
+      cmdArgs += ['-fastqc_args',fastqc_args]
   else:
     util.info('Skipping fastqc step...')
-  
-  
+
   if is_single_end:
     util.info('User specified input data to be single-end... Running single-end mode...')
-    fastq_paths = list(csv[:, 1])
+    fastq_paths = list(csv[:,1])
 
     for f in fastq_paths:
       f0 = os.path.expanduser(f)
       d = os.path.dirname(f0)
       f = os.path.basename(f)
       if 'fq.gz' in f:
-        f = f.split(".")
+        f=f.split(".")
         f = f[:-2]
         f = '.'.join(f)
       trimmed_filename = od + '/' + f +'_trimmed.fq.gz'
@@ -160,7 +158,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       fastq_dirs.append(d)
 
   else:
-    util.info('User specified input data to be paired-end... Running paired-end mode with tags %s and %s...' % (pair_tags[0], pair_tags[1]))
+    util.info('User specified input data to be paired-end... Running paired-end mode with tags %s and %s...' % (pair_tags[0],pair_tags[1]))
     cmdArgs.append('--paired')
 
     fastq_paths = []
@@ -183,7 +181,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
 #        f = '.'.join(f)
       if pair_tags[0] in f:
         trimmed_filename = od + '/' + f + '_val_1.fq.gz'
-        d = os.path.dirname(f0) # directory where fastq file is stored
+        d = os.path.dirname(f0)             # directory where fastq file is stored
       elif pair_tags[1] in f:
         trimmed_filename = od + '/' + f + '_val_2.fq.gz'
       else:
@@ -193,13 +191,12 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
         fastq_paths2.append(f0)
       trimmed_fq.append(trimmed_filename)
       fastq_dirs.append(d)
-  
-  
+
   # Run Trim_galore followed by fastqc
   if fastq_paths2 != []:
 
     if skipfastqc is False:
-      util.call(['fastqc', '-v'], stdout = util.LOG_FILE_OBJ)
+      util.call(['fastqc','-v'],stdout=util.LOG_FILE_OBJ)
 
     cmdArgs += fastq_paths2
 
@@ -214,13 +211,13 @@ def split_pe_files(fq_list,pair_tags=['r_1','r_2']):
 
   if len(fq_r1) != len(fq_r2):
     util.critical('Number of fq files differs for read1 and read2... Exiting...')
-    
-  return([fq_r1,fq_r2])
+
+  return([fq_r1, fq_r2])
 
 
 def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_args=None, num_cpu=util.MAX_CORES,
           is_single_end = False, mapq=20, pair_tags=['r_1','r_2']):
-  
+
   # Check whether genome indices are present. If not, create them.
   if aligner is ALIGNER_STAR:
     if star_index is None:
@@ -234,7 +231,7 @@ def align(trimmed_fq, fastq_dirs, aligner, genome_fasta, star_index=None, star_a
                  '--genomeDir',star_index,
                  '--genomeFastaFiles', genome_fasta,
                  '--runThreadN',str(num_cpu)]
-      util.call([ALIGNER_STAR,'--version'],stdout=util.LOG_FILE_OBJ)
+      util.call([ALIGNER_STAR,'--version'], stdout=util.LOG_FILE_OBJ)
       util.call(cmdArgs)
 
     util.info('Aligning reads using STAR...')
@@ -331,9 +328,12 @@ def sort_bam_parallel(bam_list,num_cpu):
       cmdArgs = ['samtools','sort','-n',bam]
       util.call(cmdArgs,stdout=bam_out)
     return(bam_out)
+
+
   common_args = []
   sorted_bam_list = util.parallel_split_job(sort_bam,bam_list,common_args, num_cpu)
   return(sorted_bam_list)
+
 
 def read_count_htseq(bam_files,genome_gtf,stranded='no'):
   rc_file_list = []
@@ -355,6 +355,7 @@ def read_count_htseq(bam_files,genome_gtf,stranded='no'):
       fileObj.close()
   return(rc_file_list)
 
+
 def read_count_htseq_parallel(bam_files,genome_gtf,num_cpu, stranded='no'):
   common_args = [genome_gtf,stranded]
   bam_files = [ [x] for x in bam_files ]
@@ -362,9 +363,8 @@ def read_count_htseq_parallel(bam_files,genome_gtf,num_cpu, stranded='no'):
   return(counts)
 
 
-
 def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism, contrast='condition', levels=None):
-  
+
   if organism not in ['human', 'mouse', 'worm', 'fly', 'yeast', 'zebrafish']:
     organism = "None"
     util.info('No recognised organism provided...')
@@ -388,8 +388,8 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
     N = csv.shape[1] - 1
 
     csv_deseq = np.zeros((M,N))
-    csv_deseq = np.array(csv_deseq,dtype=object)  # dtype=object provides an array of python object references. 
-                                                  # It can have all the behaviours of python strings.
+    csv_deseq = np.array(csv_deseq,dtype=object) # dtype=object provides an array of python object references.
+                                                 # It can have all the behaviours of python strings.
 
     csv_deseq[:,0] = csv[:,0]
     csv_deseq[:,1] = np.array(rc_file_list)
@@ -414,21 +414,21 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
 
   i=[]
 
-  if exists_skip(exploratory_analysis_plots):   # Gene expression analysis has 3 steps.
-    i.append("ea")                              # These do not need to be repeated if they have
-  if exists_skip(TPMs):                         # already been run. Therefore, the script checks
-    i.append("tpm")                             # whether the output files have been generated
-  if exists_skip(DESeq_results):                # and stores a specific flag each time that's the case.
-    i.append("deseq")                           # The following R script checks which flags have been
-                                                # stored and thus knows which steps to skip (if any).
+  if exists_skip(exploratory_analysis_plots):  # Gene expression analysis has 3 steps.
+    i.append("ea")                             # These do not need to be repeated if they have
+  if exists_skip(TPMs):                        # already been run. Therefore, the script checks
+    i.append("tpm")                            # whether the output files have been generated
+  if exists_skip(DESeq_results):               # and stores a specific flag each time that's the case.
+    i.append("deseq")                          # The following R script checks which flags have been
+                                               # stored and thus knows which steps to skip (if any).
   if len(i) > 0:
     i = "_".join(i)
 
     rnaseq_analysis_script = os.path.join(pragui_directory, 'RNAseq_analysis.R')
     if levels is None:
-      cmdArgs = ['Rscript','--vanilla', rnaseq_analysis_script, csv_deseq_name, i, geneset_gtf, organism, contrast]
+      cmdArgs = ['Rscript', '--vanilla', rnaseq_analysis_script, csv_deseq_name, i, geneset_gtf, organism, contrast]
     else:
-      cmdArgs = ['Rscript','--vanilla', rnaseq_analysis_script, csv_deseq_name, i, geneset_gtf, organism, contrast] + levels
+      cmdArgs = ['Rscript', '--vanilla', rnaseq_analysis_script, csv_deseq_name, i, geneset_gtf, organism, contrast] + levels
 
     if "deseq" in i:
       DESeq_out_obj = open(DESeq_summary,"wb")
@@ -445,7 +445,7 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
 
 def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
                        geneset_gtf=None,cuffnorm=False):
-  
+
   out_folder = './'
   library_type = None
   no_output_folder = True
@@ -475,8 +475,8 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
   # Create assemblies file needed for cuffmerge
   assemblies = out_folder + 'assembly_GTF_list.txt'
   if os.path.exists(assemblies):
-    os.remove(assemblies)
-  fileObj_assemblies = open(assemblies, 'a')
+    os.remove(assemblies) 
+  fileObj_assemblies = open(assemblies,'a')
 
   # Index bam files using samtools
   for f in bam_files:
@@ -501,7 +501,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
     if exists_skip(f_transcripts):
 
       report_cuff_version('cufflinks') # Report version of cufflinks
-
+      
       cmdArgs = ['cufflinks','-p',str(num_cpu)]
       if cuff_opt is not None:
         cmdArgs += cuff_opt
@@ -517,7 +517,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
           util.critical('Option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...')
       cmdArgs.append(f)
 
-      util.call(cmdArgs,stderr='cufflinks_stderr.log', check=False)
+      util.call(cmdArgs,stderr='cufflinks_stderr.log',check = False)
       rm_lines('cufflinks_stderr.log',util.LOG_FILE_PATH)
 
       # Rename output files
@@ -607,8 +607,8 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
   # e.g. with conditions A and B, the replicates could be ordered A1,A2 B1,B2 or A2,A1 B2,B1
 
   rep_dict = {}
-  conds_list = list(set(csv[:,3]))
-  sample_files_list = list(set(csv[:,1]))
+  conds_list = list(set(csv[:, 3]))
+  sample_files_list = list(set(csv[:, 1]))
   for conds in conds_list:
     rep_dict[conds] = []
 
@@ -644,11 +644,11 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
     cmdArgs = ['cuffnorm'] + basic_options[3:-1]
     cmdArgs.append(dir_cnorm)
     cmdArgs.append('-L')
-    cmdArgs.append(conds_str)  # Changed for Gurpreet's edit
+    cmdArgs.append(conds_str) # Changed for Gurpreet's edit
     cmdArgs.append(ofc2)
-    cmdArgs += reps_list       # Changed for Gurpreet's edit
-    util.call(cmdArgs,stderr='cuffnorm_stderr.log', check=False)
-    rm_lines('cuffnorm_stderr.log',util.LOG_FILE_PATH)
+    cmdArgs += reps_list # Changed for Gurpreet's edit
+    util.call(cmdArgs,stderr='cuffnorm_stderr.log', check = False)
+    rm_lines('cuffnorm_stderr.log', util.LOG_FILE_PATH)
 
   # Run Cuffdiff
 
@@ -662,16 +662,16 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
   cmdArgs = ['cuffdiff'] + basic_options[:-1]
   cmdArgs.append(dir_cdiff)
   cmdArgs.append('-L')
-  cmdArgs.append(conds_str)  # Changed for Gurpreet's edit
+  cmdArgs.append(conds_str) # Changed for Gurpreet's edit
   cmdArgs.append(ofc2)
-  cmdArgs += reps_list       # Changed for Gurpreet's edit
-  util.call(cmdArgs,stderr='cuffdiff_stderr.log', check=False)
+  cmdArgs += reps_list # Changed for Gurpreet's edit
+  util.call(cmdArgs,stderr='cuffdiff_stderr.log', check = False)
   rm_lines('cuffdiff_stderr.log',util.LOG_FILE_PATH)
 
   # Run CummeRbund
 
   cummerbund_script = os.path.join(pragui_directory, 'exploratory_analysis_cummeRbund.R')
-  cmdArgs = ['Rscript','--vanilla', cummerbund_script,dir_cdiff]
+  cmdArgs = ['Rscript', '--vanilla', cummerbund_script, dir_cdiff]
   util.call(cmdArgs)
   util.info('Plot saved in %s as exploratory_analysis_plots.pdf...' % dir_cdiff)
 
@@ -692,7 +692,7 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
   python_version = 'python version ' + sys.version + '\n'
 
   util.info(python_version)
-
+  
   if python_command==None:
     script = os.path.realpath(__file__)
     util.info('Calling %s from GUI...' % script)
@@ -742,7 +742,7 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
     # DESeq and exploratory analysis
     DESeq_analysis(rc_file_list=rc_file_list, header=header, csv=csv, samples_csv=samples_csv,
                    geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels)
-  
+
   if analysis_type == 'Cufflinks':
     Cufflinks_analysis(bam_files=bam_files, samples_csv=samples_csv, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
                        genome_fasta=genome_fasta, geneset_gtf=geneset_gtf,cuffnorm=cuffnorm)
@@ -808,16 +808,29 @@ if __name__ == '__main__':
   epilog = 'For further help on running this program please email paulafp@mrc-lmb.cam.ac.uk.\n\n'
   epilog += 'Example use:\n\n'
 
+  arg_parse = ArgumentParser(prog=PROG_NAME, description=DESCRIPTION,
+                             epilog=epilog, prefix_chars='-', add_help=True)
+
+  arg_parse.add_argument('samples_csv', metavar='SAMPLES_CSV',
+                         help='File path of a tab-separated file containing the samples names, the file path for read1, the file path for read2, the experimental condition (e.g. Mutant or Wild-type) and any other information to be used as contrasts for differential expression calling. For single-ended experiments, please fill read2 slot with NA.')
+
+  arg_parse.add_argument('genome_fasta', metavar='GENOME_FASTA',
+                         help='File path of genome sequence FASTA file (for use by genome aligner)')
+
   arg_parse.add_argument('-analysis_type', metavar='ANALYSIS_TYPE',default=['DESeq','Cufflinks'][0],
-                         help='Specify whether to perform analysis using DESeq2 or Cufflinks. Default is set to DESeq2.') 
+                         help='Specify whether to perform analysis using DESeq2 or Cufflinks. Default is set to DESeq2.')
 
   arg_parse.add_argument('-genome_gtf', metavar='GENOME_ANNOTATIONS_GTF', default=None,
-                         help='File path of gene annotations in gtf/gff format (for use by htseq-count). This file is only required when performing an analysis using DESeq2.') 
+                         help='File path of gene annotations in gtf/gff format (for use by htseq-count). This file is only required when performing an analysis using DESeq2.')
 
   arg_parse.add_argument('-geneset_gtf', default=None,
-                         help='File path of gene annotations in gtf/gff format needed to compute TPMs. If this file is not provided, GENOME_ANNOTATIONS_GTF will be used.') 
+                         help='File path of gene annotations in gtf/gff format needed to compute TPMs. If this file is not provided, GENOME_ANNOTATIONS_GTF will be used.')
 
   arg_parse.add_argument('-trim_galore', # metavar='TRIM_GALORE_OPTIONS',
+                         default=None,
+                         help='options to be provided to fastqc. They should be provided under double quotes. If not provided, fastqc will run with developer\'s default options.')
+
+  arg_parse.add_argument('-fastqc_args', metavar='FASTQC',
                          default=None,
                          help='options to be provided to fastqc. They should be provided under double quotes. If not provided, fastqc will run with developer\'s default options.')
 
@@ -825,25 +838,25 @@ if __name__ == '__main__':
                          help='Option to skip fastqc step. If this option is set, the option -fastqc_args will be ignored.')
 
   arg_parse.add_argument('-al', metavar='ALIGNER_NAME', default=DEFAULT_ALIGNER,
-                         help='Name of the program to perform the genome alignment/mapping: Default: %s Other options: %s' % (DEFAULT_ALIGNER, OTHER_ALIGNERS)) 
+                         help='Name of the program to perform the genome alignment/mapping: Default: %s Other options: %s' % (DEFAULT_ALIGNER, OTHER_ALIGNERS))
 
   arg_parse.add_argument('-organism', metavar='ORGANISM', default=None,
                          help='Name of the organism used if one of the following: Homo sapiens, Mus musculus, Caenorhabditis elegans, Drosophila Melanogaster, Saccharomyces Cerevisiae or Danio rerio. Please only use keywords: human, mouse, worm, fly, yeast or zebrafish respectively. If other organism is used, system will default to None.')
 
   arg_parse.add_argument('-star_index', metavar='STAR_GENOME_INDEX', default=None,
-                         help='Path to directory where genome indices are stored.') 
+                         help='Path to directory where genome indices are stored.')
 
   arg_parse.add_argument('-star_args', default=None,
-                         help='Options to be provided to STAR. They should be provided under double quotes. If not provided, STAR will be expecting the following options: --readFilesCommand zcat -c, --outSAMtype BAM, SortedByCoordinate')   
+                         help='Options to be provided to STAR. They should be provided under double quotes. If not provided, STAR will be expecting the following options: --readFilesCommand zcat -c, --outSAMtype BAM, SortedByCoordinate')
 
   arg_parse.add_argument('-mapq', default=20, type=int,
-                         help='Threshold below which reads will be removed from the aligned bam file.') 
+                         help='Threshold below which reads will be removed from the aligned bam file.')
 
   arg_parse.add_argument('-cpu', metavar='NUM_CORES', default=util.MAX_CORES, type=int,
-                         help='Number of parallel CPU cores to use. Default: All available (%d)' % util.MAX_CORES) 
+                         help='Number of parallel CPU cores to use. Default: All available (%d)' % util.MAX_CORES)
 
   arg_parse.add_argument('-pe', nargs=2, metavar='PAIRED_READ_TAGS', default=['r_1','r_2'],
-                        help='The subtrings/tags which are the only differences between paired FASTQ file paths. Default: r_1 r_2') 
+                        help='The subtrings/tags which are the only differences between paired FASTQ file paths. Default: r_1 r_2')
 
   arg_parse.add_argument('-se', default=False, action='store_true',
                          help='Input reads are single-end data, otherwise defaults to paired-end.')
@@ -853,6 +866,9 @@ if __name__ == '__main__':
 
   arg_parse.add_argument('-contrast', # default='condition',
                          help='Set column from SAMPLES_CSV file to be used as contrast by DESeq2 otherwise defaults to the third column')
+
+  arg_parse.add_argument('-contrast_levels', nargs=2, default=None,
+                         help='Set comparisons for DESeq2. By default, DESeq2 compare last level over the first level from the CONTRAST column.')
 
   arg_parse.add_argument('-cuff_opt', default=None,
                          help='options to be provided to cufflinks. They should be provided under quotes. If not provided, cufflinks will run with developer\'s default options.')
@@ -866,7 +882,7 @@ if __name__ == '__main__':
   arg_parse.add_argument('-disable_multiqc', default=False, action='store_true',
                          help='Specify whether to disable multiqc run. Defaults to False.')
 
-  arg_parse.add_argument('-q', default=False, action='store_true',
+  arg_parse.add_argument('-q',default=False, action='store_true',
                          help='Sets quiet mode to supress on-screen reporting.')
 
   arg_parse.add_argument('-log', default=False, action='store_true',
@@ -897,14 +913,14 @@ if __name__ == '__main__':
   cuff_gtf      = args['cuff_gtf']
   cuffnorm      = args['cuffnorm']
   multiqc       = not args['disable_multiqc']
-  
+
   # Reporting handled by cross_fil_util.py (submodule)
   q   = args['q']
   log = args['log']
 
   # Save python command
   python_command = ' '.join(sys.argv) + '\n'
-
+  
   rnaseq_diff_caller(samples_csv=samples_csv, genome_fasta=genome_fasta, genome_gtf=genome_gtf, geneset_gtf=geneset_gtf, 
                      analysis_type=analysis_type, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args,
                      aligner=aligner, organism=organism,is_single_end=is_single_end, pair_tags=pair_tags,star_index=star_index,
