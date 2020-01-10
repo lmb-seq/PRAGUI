@@ -76,7 +76,7 @@ def submit(btn):
       app.addLabelEntry('pair_tags', 3, 1)
       app.setLabelTooltip('pair_tags', 'Substrings/tags which are the only differences between paired FASTQ file paths. e.g.: r_1 r_2.')
     else:
-      if 'num_cpu' in args: # and isinstance(args['num_cpu'],float):
+      if 'num_cpu' in args and isinstance(args['num_cpu'],float):
         args['num_cpu'] = int(args['num_cpu'])
       for key, val in args_copy.items():
         if val in ['', 0]:
