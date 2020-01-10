@@ -180,7 +180,10 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       if '.gz' in f:
         f = f.rstrip('.gz')
       if '.fq' in f or '.fastq' in f:
-        f = f.rstrip('.fastq')
+        f=f.split(".")
+        f = f[:-1]
+        f = '.'.join(f)
+#        f = f.rstrip('.fastq')
 #      if f[-5:] == 'fq.gz' or f[-8:] == 'fastq.gz':
 #        f=f.split(".")
 #        f = f[:-2]
