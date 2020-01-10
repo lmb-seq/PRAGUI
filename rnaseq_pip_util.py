@@ -147,11 +147,17 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       f0 = os.path.expanduser(f)
       d = os.path.dirname(f0)
       f = os.path.basename(f)
-      if 'fq.gz' in f:
-        f=f.split(".")
-        f = f[:-2]
-        f = '.'.join(f)
+      if '.gz' in f:
+        f = f.rstrip('.gz')
+      if '.fq' in f or '.fastq' in f:
+        f = f.rstrip('.fastq')        
+
+      #if 'fq.gz' in f:
+      #  f=f.split(".")
+      #  f = f[:-2]
+      #  f = '.'.join(f)
       trimmed_filename = od + '/' + f +'_trimmed.fq.gz'
+      print(trimmed_filename)
       if exists_skip(trimmed_filename):
         fastq_paths2.append(f0)
       trimmed_fq.append(trimmed_filename)
