@@ -122,7 +122,7 @@ def submit(btn):
         for key, item in checkBox.items():
           if item:
             command = command + " -%s " % key
-        command = 'module load python3/3.7.1\nmodule load multiqc\npython3 /net/nfs1/public/genomics/PRAGUI/rnaseq_pip_util.py %s %s %s ' % (samples_csv, genome_fasta, command)
+        command = 'module load python3/3.7.1\nmodule load R\nmodule load multiqc\npython3 /net/nfs1/public/genomics/PRAGUI/rnaseq_pip_util.py %s %s %s ' % (samples_csv, genome_fasta, command)
         tempObj.write(command)
         tempObj.close()
         qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
