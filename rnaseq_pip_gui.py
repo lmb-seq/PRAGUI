@@ -448,8 +448,8 @@ class Window(QWidget):
       tempObj.write(command)
       tempObj.close()
       qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
-      #util.call(qsubArgs)
-      #os.remove(temp)
+      util.call(qsubArgs)
+      os.remove(temp)
     # Run PRAGUI on local machine
     else:
       if self.lib == 'paired-end':
