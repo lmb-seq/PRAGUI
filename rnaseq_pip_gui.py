@@ -203,7 +203,8 @@ class Window(QWidget):
     self.org_lbl = QLabel('Organism',self)
     self.org_opt = MyQComboBox(self,['human', 'mouse', 'worm', 'fly', 'yeast', 'zebrafish', 'None'])
     self.str_lbl = QLabel('Stranded',self)
-    self.str_opt = MyQComboBox(self,['forward', 'reverse', 'unstranded'])
+    self.str_opt = MyQComboBox(self,['from START (5\' to 3\')',
+                                     'from END (3\' to 5\')', 'both'])
     self.files_lbl = QLabel('INPUT FILES',self)
     self.files_lbl = section_label(self.files_lbl)
     self.fa_file_frame      = MyFileFetchFrame(self,'Genome Fasta File','Browse')
@@ -404,7 +405,9 @@ class Window(QWidget):
       self.flags.append('-log')
     # Arguments to run PRAGUI
     args = [self.csv_file, self.fa_file]
-    strand_lib = {'forward':'yes','reverse':'reverse','unstranded':'no'}
+    strand_lib = {'from START (5\' to 3\')':'yes',
+                  'from END (3\' to 5\')':'reverse',
+                  'both':'no'}
     dict_args = {'analysis_type': self.de,
                  'genome_gtf'   : self.gtf_file,
                  'organism'     : self.org,
