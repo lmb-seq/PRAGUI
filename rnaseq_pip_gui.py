@@ -442,14 +442,14 @@ class Window(QWidget):
         args = args + ['pe',self.pe_tags]
       show_pop_up(msg='Job submitted to LMB cluster!')
       command = ' '.join(args)
-      command = 'module load python3\nmodule load multiqc\npython3 /net/nfs1/public/genomics/PRAGUI/rnaseq_pip_util.py %s ' % (command)
+      command = 'module load python3/3.7.1\nmodule load multiqc\nmodule load R\npython3 /net/nfs1/public/genomics/PRAGUI/rnaseq_pip_util.py %s ' % (command)
       temp = 'job_' + util.get_rand_string(5) + ".sh"
       tempObj = open(temp, 'w')
       tempObj.write(command)
       tempObj.close()
       qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
       util.call(qsubArgs)
-      os.remove(temp)
+      #os.remove(temp)
     # Run PRAGUI on local machine
     else:
       if self.lib == 'paired-end':
