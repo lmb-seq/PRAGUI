@@ -222,8 +222,9 @@ if("deseq" %in% i){
         }
       if(length(inst_pkgs)>0){
         cat(paste0("Installing ",inst_pkgs, "...\n"))
-        source("https://bioconductor.org/biocLite.R")
-        biocLite(pkgs = inst_pkgs,ask = FALSE)
+        if (!requireNamespace("BiocManager", quietly = TRUE))
+          install.packages("BiocManager")
+        BiocManager::install(inst_pkgs,ask = FALSE)
         }
       library(Biobase)
       library(AnnotationDbi)
