@@ -147,11 +147,17 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       f0 = os.path.expanduser(f)
       d = os.path.dirname(f0)
       f = os.path.basename(f)
-      if 'fq.gz' in f:
-        f=f.split(".")
-        f = f[:-2]
-        f = '.'.join(f)
+      if '.gz' in f:
+        f = f.rstrip('.gz')
+      if '.fq' in f or '.fastq' in f:
+        f = f.rstrip('.fastq')        
+
+      #if 'fq.gz' in f:
+      #  f=f.split(".")
+      #  f = f[:-2]
+      #  f = '.'.join(f)
       trimmed_filename = od + '/' + f +'_trimmed.fq.gz'
+      print(trimmed_filename)
       if exists_skip(trimmed_filename):
         fastq_paths2.append(f0)
       trimmed_fq.append(trimmed_filename)
@@ -174,7 +180,10 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       if '.gz' in f:
         f = f.rstrip('.gz')
       if '.fq' in f or '.fastq' in f:
-        f = f.rstrip('.fastq')
+        f=f.split(".")
+        f = f[:-1]
+        f = '.'.join(f)
+#        f = f.rstrip('.fastq')
 #      if f[-5:] == 'fq.gz' or f[-8:] == 'fastq.gz':
 #        f=f.split(".")
 #        f = f[:-2]
@@ -444,7 +453,7 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
 
 
 def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
-                       geneset_gtf=None,cuffnorm=False):
+                       geneset_gtf=None,cuffnorm=False, status = None):
 
   out_folder = './'
   library_type = None
@@ -575,7 +584,12 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
       util.call(cmdArgs,stderr='cuffquant_stderr.log')
       rm_lines('cuffquant_stderr.log',util.LOG_FILE_PATH)
       os.rename(out_folder + 'abundances.cxb', ofc3)
-
+      
+  if status is not None:
+    status_obj = open(status,'a')
+    status_obj.write('Read count done...\n')
+    status_obj.close()  
+   
   # Set list of replicates and conditions for both Cuffnorm and Cuffdiff
   '''
   reps = [cxb_list[0]]
@@ -684,7 +698,7 @@ def run_multiqc(multiqc=True):
 def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
                        skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER,organism=None, is_single_end=False, pair_tags=['r_1','r_2'],
                        star_index=None,star_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded='no',contrast='condition',levels=None,
-                       cuff_opt=None, cuff_gtf=False,cuffnorm=False, multiqc=True,python_command=None,q=False,log=False):
+                       cuff_opt=None, cuff_gtf=False,cuffnorm=False, multiqc=True,python_command=None,q=False,log=False, gui=False, status=None):
   
   util.QUIET   = q
   util.LOGGING = log
@@ -693,12 +707,12 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
 
   util.info(python_version)
   
-  if python_command==None:
+  if gui:
     script = os.path.realpath(__file__)
     util.info('Calling %s from GUI...' % script)
-    util.info(locals())
-  else:
-    util.info(python_command)
+#    util.info(locals())
+
+  util.info(python_command)
 
   if isinstance(pair_tags, str):
     pair_tags = pair_tags.split(',')
@@ -727,10 +741,20 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
   trimmed_fq, fastq_dirs = trim_bam(samples_csv=samples_csv, csv=csv, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args, 
                                     is_single_end=is_single_end, pair_tags=pair_tags)
   
+  if status is not None:
+    status_obj = open(status,'a')
+    status_obj.write('TrimGalore processing done... \n')
+    status_obj.close()
+  
   # Run Aligner
   
   bam_files = align(trimmed_fq=trimmed_fq, fastq_dirs=fastq_dirs, aligner=aligner, star_index=star_index, star_args=star_args, 
                     num_cpu=num_cpu, genome_fasta=genome_fasta, is_single_end=is_single_end, mapq=mapq, pair_tags=pair_tags)
+  
+  if status is not None:
+    status_obj = open(status,'a')
+    status_obj.write('Alignment done...\n')
+    status_obj.close()
   
   # Differential gene expression
 
@@ -739,16 +763,31 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
     sorted_bam_list = sort_bam_parallel(bam_list = bam_files, num_cpu=num_cpu)
     counts = read_count_htseq_parallel(bam_files=sorted_bam_list,genome_gtf=genome_gtf,stranded=stranded,num_cpu=num_cpu)
     rc_file_list = [x[0] for x in counts]
+    if status is not None:
+      status_obj = open(status,'a')
+      status_obj.write('Read count done...\n')
+      status_obj.close()
     # DESeq and exploratory analysis
     DESeq_analysis(rc_file_list=rc_file_list, header=header, csv=csv, samples_csv=samples_csv,
                    geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels)
 
   if analysis_type == 'Cufflinks':
+    
     Cufflinks_analysis(bam_files=bam_files, samples_csv=samples_csv, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
-                       genome_fasta=genome_fasta, geneset_gtf=geneset_gtf,cuffnorm=cuffnorm)
-
+                       genome_fasta=genome_fasta, geneset_gtf=geneset_gtf,cuffnorm=cuffnorm,status=status)
+  
+  if status is not None:
+    status_obj = open(status,'a')
+    status_obj.write('Differential Expression Analysis done...\n')
+    status_obj.close()
+  
   run_multiqc(multiqc=multiqc)
   util.info('Analysis complete')
+  
+  if status is not None:
+    status_obj = open(status,'a')
+    status_obj.write('All done!\n')
+    status_obj.close()
 
 
 def check_csv_samples(csv):
@@ -888,6 +927,12 @@ if __name__ == '__main__':
   arg_parse.add_argument('-log', default=False, action='store_true',
                          help='Log all reported output to a file.')
 
+  arg_parse.add_argument('-gui', default=False, action='store_true',
+                         help='PRAGUI is being run through its GUI. Do not change this parameter manually.')
+                         
+  arg_parse.add_argument('-status', default=None,
+                         help='Status file. Should only be specified by GUI. Do not change this parameter manually.')
+
   args = vars(arg_parse.parse_args())
 
   samples_csv   = args['samples_csv']
@@ -915,8 +960,10 @@ if __name__ == '__main__':
   multiqc       = not args['disable_multiqc']
 
   # Reporting handled by cross_fil_util.py (submodule)
-  q   = args['q']
-  log = args['log']
+  q      = args['q']
+  log    = args['log']
+  gui    = args['gui']
+  status = args['status']
 
   # Save python command
   python_command = ' '.join(sys.argv) + '\n'
@@ -925,7 +972,8 @@ if __name__ == '__main__':
                      analysis_type=analysis_type, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args,
                      aligner=aligner, organism=organism,is_single_end=is_single_end, pair_tags=pair_tags,star_index=star_index,
                      star_args=star_args,num_cpu=num_cpu,mapq=mapq,stranded=stranded,contrast=contrast,levels=levels,
-                     cuff_opt=cuff_opt, cuff_gtf=cuff_gtf,cuffnorm=cuffnorm, multiqc=multiqc,python_command=python_command,q=q,log=log)
+                     cuff_opt=cuff_opt, cuff_gtf=cuff_gtf,cuffnorm=cuffnorm, multiqc=multiqc,python_command=python_command,q=q,
+                     log=log,gui=gui,status=status)
 
 
 
