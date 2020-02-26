@@ -298,6 +298,7 @@ class Window(QWidget):
     grid3.addWidget(self.de_lbl,1,0,1,1)
     grid3.addWidget(self.de_opt,1,1,1,2)
     grid3.addWidget(self.mapq,2,0,1,3)
+    grid3.addWidget(self.cuff_gtf,3,0,1,1)
     self.AnOptsGroupBox.setLayout(grid3)
     
   # Software Arguments
