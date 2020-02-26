@@ -8,6 +8,7 @@ import sys
 import os
 import traceback
 import uuid
+import subprocess
 current_path = os.path.realpath(__file__)
 current_path = os.path.dirname(current_path) + '/cell_bio_util'
 sys.path.append(current_path)
@@ -297,7 +298,6 @@ class Window(QWidget):
     grid3.addWidget(self.de_lbl,1,0,1,1)
     grid3.addWidget(self.de_opt,1,1,1,2)
     grid3.addWidget(self.mapq,2,0,1,3)
-    #grid3.setContentsMargins(0,0,0,20)
     self.AnOptsGroupBox.setLayout(grid3)
     
   # Software Arguments
@@ -443,7 +443,6 @@ class Window(QWidget):
     if self.qsub.isChecked():
       if self.lib == 'paired-end':
         args = args + ['pe',self.pe_tags]
-      show_pop_up(msg='Job submitted to LMB cluster!')
       command = ' '.join(args)
       command = 'module load python3/3.7.1\nmodule load multiqc\nmodule load R\npython3 /net/nfs1/public/genomics/PRAGUI/rnaseq_pip_util.py %s ' % (command)
       temp = 'job_' + util.get_rand_string(5) + ".sh"
@@ -452,7 +451,8 @@ class Window(QWidget):
       tempObj.close()
       qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
       util.call(qsubArgs)
-      #os.remove(temp)
+      show_pop_up(msg='Job submitted to LMB cluster!')
+      os.remove(temp)
     # Run PRAGUI on local machine
     else:
       if self.lib == 'paired-end':
@@ -464,7 +464,7 @@ class Window(QWidget):
       #proc = Popen(args)
       #proc.communicate()
 
-  def print_error(self,t):
+  def print_error(self):
     #err = t[2]
     #msg = 'Oops! An error has ocurred:  %s' % err
     self.timer.stop()
@@ -477,46 +477,65 @@ class Window(QWidget):
       show_pop_up(msg)
       
   def check_progress(self):
+    self.counter +=1
     if os.path.isfile(self.status):
       status_obj = open(self.status,'r')
       n = 0
+      line = ''
       for line in status_obj:
         line = line.rstrip('\n')
         n+=1
-        if line == 'All done!':
-          self.timer.stop()
       status_obj.close()
-      #print(line)
       value = 100 * n / 6
-      print(value)
       self.progress.setValue(value)
       self.progress.setLabelText(line)
-      self.progress.update()
+      #self.progress.update()
       if value == 100:
         os.remove(self.status)
-    
+        msg = 'Job finished successfully.'
+        show_pop_up(msg)
+        self.timer.stop()
+      elif self.qsub.isChecked() and self.counter>2:
+        stdout = open('qstat.out','w')
+        subprocess.run(['qstat'],stdout=stdout)
+        print('Checking qstat...')
+        # util.call(['qstat'],stdout='qstat.out')
+        if os.stat('qstat.out').st_size == 0:
+          self.print_error()
+          self.timer.stop()
+          self.progress.close()
+        os.remove('qstat.out')
+          
+        
   
   def on_submit(self):
+    self.counter = 0
     self.status =  'status_%s.txt' % uuid.uuid4()
     status_obj = open(self.status,'w')
-    status_obj.write('Starting PRAGUI...\n')
     status_obj.close()
     self.progress = QProgressDialog('PRAGUI\'s Progress...','Cancel',0,100)
     # Set timer
     self.timer = QTimer()
-    self.timer.setInterval(10000)#(120000)
+    self.timer.setInterval(30000)#(120000)
     self.timer.timeout.connect(self.check_progress)
     self.timer.start()
     # Submit
     submit = RunPRAGUI(self.execute_pragui)
-    submit.signals.error.connect(self.print_error)
-    submit.signals.finished.connect(self.print_job_done)
+    if not self.qsub.isChecked():
+      submit.signals.error.connect(self.print_error)
+      # submit.signals.finished.connect(self.print_job_done)
     self.threadpool.start(submit)
 
 
 #####################################################
  
 class BuildCSV(QWidget):
+  '''
+  Widget to build a samples.csv file.
+  Firstly, it brings up a window to specify the number of samples.
+  Then it opens a second window with a table costumised for that number of samples.
+  User can then fill in that table and save it.
+  '''
   def __init__(self,parent=None):
     QWidget.__init__(self, parent)
     self.initUI()
@@ -603,6 +622,9 @@ class BuildCSV(QWidget):
 
     
 class UploadCSV(QWidget):
+  '''
+  Widget that allows to browse for a pre-built samples.csv file.
+  '''
   def __init__(self,parent=None):
     QWidget.__init__(self,parent)
     self.initUI()

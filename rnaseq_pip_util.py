@@ -714,6 +714,11 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
 
   util.info(python_command)
 
+  if status is not None:
+    status_obj = open(status,'a')
+    status_obj.write('Starting PRAGUI... \n')
+    status_obj.close()
+
   if isinstance(pair_tags, str):
     pair_tags = pair_tags.split(',')
 
@@ -737,7 +742,7 @@ def rnaseq_diff_caller(samples_csv, genome_fasta, genome_gtf, geneset_gtf=None, 
   check_csv_reads(csv)
 
   # Trim_galore
-  
+ 
   trimmed_fq, fastq_dirs = trim_bam(samples_csv=samples_csv, csv=csv, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args, 
                                     is_single_end=is_single_end, pair_tags=pair_tags)
   
