@@ -295,10 +295,11 @@ class Window(QWidget):
   def createAnalysisOptsGroup(self):
     self.AnOptsGroupBox = MyQGroupBox('')
     grid3 = QGridLayout()
-    grid3.addWidget(self.de_lbl,1,0,1,1)
-    grid3.addWidget(self.de_opt,1,1,1,2)
-    grid3.addWidget(self.mapq,2,0,1,3)
+    grid3.addWidget(self.mapq,1,0,1,3)
+    grid3.addWidget(self.de_lbl,2,0,1,1)
+    grid3.addWidget(self.de_opt,2,1,1,2)
     grid3.addWidget(self.cuff_gtf,3,0,1,1)
+    grid3.addWidget(self.cuffnorm,3,1,1,1)
     self.AnOptsGroupBox.setLayout(grid3)
     
   # Software Arguments
@@ -317,8 +318,8 @@ class Window(QWidget):
     self.ProcOptsGroupBox = MyQGroupBox('')
     grid5 = QGridLayout()
     grid5.addWidget(self.skipfastqc,1,0)
-    grid5.addWidget(self.skipmultiqc,2,1)
-    grid5.addWidget(self.q,2,0)
+    grid5.addWidget(self.skipmultiqc,2,0)
+    grid5.addWidget(self.q,2,1)
     grid5.addWidget(self.log,1,1)
     grid5.addWidget(self.qsub,1,3)
     grid5.addWidget(self.cpu,2,3)
