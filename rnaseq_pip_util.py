@@ -528,9 +528,9 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
         else:
           if stranded == 'no':
             lt = 'fr-unstranded'
-          if stranded = 'yes':
+          if stranded == 'yes':
             lt = 'fr-secondstrand'
-          if stranded = 'reverse':
+          if stranded == 'reverse':
             lt = 'fr-firststrand'
           library_type = ['--library-type',lt]
           cmdArgs += library_type
