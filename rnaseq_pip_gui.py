@@ -431,7 +431,7 @@ class Window(QWidget):
       dict_args['mapq']        = self.mapq_args 
 #    if self.lib == 'paired-end':
 #      dict_args['pe']   = self.pe_tags
-    else:
+    if self.lib == 'paired-end':
       self.flags.append('-se')
     if self.skipmultiqc.isChecked():
       self.flags.append('-disable_multiqc')
