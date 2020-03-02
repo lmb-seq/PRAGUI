@@ -453,7 +453,7 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
 
 
 def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
-                       geneset_gtf=None,cuffnorm=False, status = None):
+                       geneset_gtf=None,cuffnorm=False, status = None, stranded=None):
 
   out_folder = './'
   library_type = None
@@ -471,6 +471,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
     if '--library-type' in cuff_opt:
       ind2 = cuff_opt.index('--library-type') + 1
       library_type = ['--library-type',cuff_opt[ind2]]
+      is_strand_specified = True
     is_gtf_specified = '-g' in cuff_opt or '-GTF-guide' in cuff_opt
     if '-g' in cuff_opt:
       ind3 = cuff_opt.index('-g')+1
@@ -479,7 +480,9 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
       ind3 = cuff_opt.index('-GTF-guide')+1
       cuff_gtf_file = ['-g',cuff_opt[ind3]]
   else:
-    is_gtf_specified = False
+    is_gtf_specified    = False
+    is_strand_specified = False
+
 
   # Create assemblies file needed for cuffmerge
   assemblies = out_folder + 'assembly_GTF_list.txt'
@@ -518,6 +521,20 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, genome_fasta, cuff_opt=None,
         util.warn('No options were specified for Cufflinks. Developer\'s default options will be used...')
       if no_output_folder:
         util.info('No output folder for cufflinks has been specified. Files will be saved in the same folder as %s...' % f)
+      
+      if stranded is not None:
+        if is_strand_specified:
+          util.critical('Option "--library-type" should not be specified if "stranded" has been specified. Exiting...')
+        else:
+          if stranded == 'no':
+            lt = 'fr-unstranded'
+          if stranded = 'yes':
+            lt = 'fr-secondstrand'
+          if stranded = 'reverse':
+            lt = 'fr-firststrand'
+          library_type = ['--library-type',lt]
+          cmdArgs += library_type
+          
       if cuff_gtf is True:
         if not is_gtf_specified:
           cmdArgs.append('-g')
