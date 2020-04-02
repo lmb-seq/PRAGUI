@@ -28,8 +28,9 @@ if((!"RSQLite" %in% packages) | packageDescription("RSQLite")$Version=="1.1-2"){
 
 if(!"DESeq2" %in% packages){
   cat("DESeq2 has not been installed... Installing DESeq2\n")
-  source("https://bioconductor.org/biocLite.R")
-  biocLite("DESeq2")
+  if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+  BiocManager::install("DESeq2")
 }
 
 if(!"pheatmap" %in% packages){
@@ -47,6 +48,19 @@ if(!"refGenome" %in% packages){
   install.packages("refGenome",repos='http://cran.us.r-project.org')
 }
 
+if(!"tximport" %in% packages){
+  cat("tximport has not been installed....\nInstalling data.table\n")
+  if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+  BiocManager::install("tximport")
+}
+
+if(!"GenomicFeatures" %in% packages){
+  cat("GenomicFeatures has not been installed....\nInstalling data.table\n")s
+  if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+  BiocManager::install("GenomicFeatures")
+}
 
 databases <- list(human=list("org.Hs.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","REFSEQ","SYMBOL","UCSCKG")),
                   mouse=list("org.Mm.eg.db",c("ACCNUM","ALIAS","ENSEMBL","ENTREZID","GENENAME","MGI","REFSEQ","SYMBOL")),
@@ -78,6 +92,7 @@ design_formula <- as.formula(paste("~",args[5]))
 
 if("salmon" %in% i){
   library(tximport)
+  library(GenomicFeatures)
   files = sampleTable$filename
   txdb <- makeTxDbFromGFF(gtf)
   k <- keys(txdb, keytype = "TXNAME")
@@ -85,13 +100,11 @@ if("salmon" %in% i){
   txi <- tximport(files, type = "salmon", tx2gene = txdb)
   colnames(txi$counts)<-sampleTable$samplename
   sampleTable <- as.data.frame(sampleTable)
-  sampleTable2<-data.frame(sampleTable[,args[5])
+  sampleTable2<-data.frame(sampleTable[,args[5]])
   colnames(sampleTable2)<-args[5]
   rownames(sampleTable2)<-sampleTable$samplename
   dds <- DESeqDataSetFromTximport(txi, sampleTable2, design_formula)
-  } 
-  
-else {
+  } else {
   dds <- DESeqDataSetFromHTSeqCount(sampleTable = sampleTable,
                                   directory = directory,
                                   design = design_formula) #design= ~ condition)

@@ -266,29 +266,34 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
                '-p', str(num_cpu)]
     
     out_files = []
-               
+    
+    def define_output(fq):
+        fo = os.path.basename(fq)
+        fo = fastq_dirs[k]+ '/' + fo
+        quant = fo + '_quant'
+        quant_out = quant + '/quant.sf'
+        return([quant,quant_out])
+             
     if is_single_end:
       util.info('Running single-end mode...')
       k = 0
       for f in trimmed_fq:
-        fo = os.path.basename(f)
-        fo = fastq_dirs[k]+ '/' + fo
-        quant = fo + '_quant'
+        quant , quant_out = define_output(f)
         cmdArgs0 = cmdArgs + ['-r',f,'-o',quant]
-        print(cmdArgs0)
-        util.call(cmdArgs0)
-        out_files.append(quant)
+        if exists_skip(quant_out):
+          util.call(cmdArgs0)
+        out_files.append(quant_out)
         k+=1
     else:
       util.info('Running paired-end mode...')
       #trimmed_fq_r1, trimmed_fq_r2 = split_pe_files(trimmed_fq,pair_tags=pair_tags)
       for trimmed_fq_r1, trimmed_fq_r2 in trimmed_fq:
-        fo = os.path.basename(trimmed_fq_r1)
-        fo = fastq_dirs[k]+ '/' + fo
-        quant = './'+ fo + '_quant'
-        cmdArgs0 = cmdArgs + ['-1',trimmed_fq_r1, '-2', trimmed_fq_r2,'-o',quant]
-        util.call(cmdArgs0)
-        out_files.append(quant)
+        quant , quant_out = define_output(trimmed_fq_r1)
+        if exists_skip(quant_out):
+          cmdArgs0 = cmdArgs + ['-1',trimmed_fq_r1, '-2', trimmed_fq_r2,'-o',quant]
+          util.call(cmdArgs0)
+        out_files.append(quant_out)
+        k+=1
          
   
   if aligner is ALIGNER_STAR:
@@ -476,6 +481,9 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
   if exists_skip(DESeq_results):               # and stores a specific flag each time that's the case.
     i.append("deseq")                          # The following R script checks which flags have been
                                                # stored and thus knows which steps to skip (if any).
+  if aligner == SALMON:                        
+    i.append(SALMON)
+    
   if len(i) > 0:
     i = "_".join(i)
 
