@@ -243,7 +243,8 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
       util.info(aligner == SALMON)
       if aligner == SALMON:
         cmdArgs = [SALMON,
-                   'index','-t', fasta_file,
+                   'index','-p', str(num_cpu),
+                   '-t', fasta_file,
                    '-i', index_head]
         shutil 
       if aligner is ALIGNER_STAR:
@@ -273,10 +274,10 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         quant = fo + '_quant'
         quant_out = quant + '/quant.sf'
         return([quant,quant_out])
-             
+     
+    k = 0        
     if is_single_end:
       util.info('Running single-end mode...')
-      k = 0
       for f in trimmed_fq:
         quant , quant_out = define_output(f)
         cmdArgs0 = cmdArgs + ['-r',f,'-o',quant]
@@ -286,8 +287,12 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         k+=1
     else:
       util.info('Running paired-end mode...')
-      #trimmed_fq_r1, trimmed_fq_r2 = split_pe_files(trimmed_fq,pair_tags=pair_tags)
-      for trimmed_fq_r1, trimmed_fq_r2 in trimmed_fq:
+      read1_list, read2_list = split_pe_files(trimmed_fq,pair_tags=pair_tags)
+      l = len(read1_list)
+      for i in range(l):
+        trimmed_fq_r1 = read1_list[i]
+        trimmed_fq_r2 = read2_list[i]
+      #for trimmed_fq_r1, trimmed_fq_r2 in trimmed_fq:
         quant , quant_out = define_output(trimmed_fq_r1)
         if exists_skip(quant_out):
           cmdArgs0 = cmdArgs + ['-1',trimmed_fq_r1, '-2', trimmed_fq_r2,'-o',quant]
@@ -423,7 +428,7 @@ def read_count_htseq_parallel(bam_files,genome_gtf,num_cpu, stranded='no'):
   return(counts)
 
 
-def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism, contrast='condition', levels=None):
+def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism, log, aligner, contrast='condition', levels=None):
 
   if organism not in ['human', 'mouse', 'worm', 'fly', 'yeast', 'zebrafish']:
     organism = "None"
@@ -432,7 +437,12 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
     util.info('User provided recognised organism. Using %s genes names in differential analysis output...' % organism)
 
   # Create csv file for DESeq function DESeqDataSetFromHTSeqCount
-  deseq_dir = os.path.dirname(rc_file_list[0]) + '/'
+  if aligner == SALMON:
+    deseq_dir = rc_file_list[0].split('/')
+    deseq_dir = deseq_dir[:-2]
+    deseq_dir = '/'.join(deseq_dir) + '/'
+  else:
+    deseq_dir = os.path.dirname(rc_file_list[0]) + '/'
   deseq_head = os.path.basename(samples_csv)
   deseq_head = deseq_dir + deseq_head
 
@@ -499,11 +509,12 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
       DESeq_out_obj.close()
     else:
       util.call(cmdArgs)
-
+      
     util.logging('')
     sessionInfo_file = deseq_head + '_sessionInfo.txt'
-    shutil.copyfileobj(open(sessionInfo_file, 'r'), util.LOG_FILE_OBJ)
-    os.remove(sessionInfo_file)
+    if log:
+      shutil.copyfileobj(open(sessionInfo_file, 'r'), util.LOG_FILE_OBJ)
+      os.remove(sessionInfo_file)
 
 
 def Cufflinks_analysis(bam_files, samples_csv, csv, fasta_file , cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
@@ -846,7 +857,7 @@ def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, a
       status_obj.write('Read count done...\n')
       status_obj.close()
     DESeq_analysis(rc_file_list=quant_files, header=header, csv=csv, samples_csv=samples_csv,
-                   geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels)
+                   geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels,log=log,aligner=aligner)
   else:
     bam_files = out_files
     if analysis_type == 'DESeq':
@@ -860,7 +871,7 @@ def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, a
         status_obj.close()
       # DESeq and exploratory analysis
       DESeq_analysis(rc_file_list=rc_file_list, header=header, csv=csv, samples_csv=samples_csv,
-                     geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels)
+                     geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels,log=log,aligner=aligner)
 
     if analysis_type == 'Cufflinks':
     

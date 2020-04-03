@@ -56,9 +56,9 @@ if(!"tximport" %in% packages){
 }
 
 if(!"GenomicFeatures" %in% packages){
-  cat("GenomicFeatures has not been installed....\nInstalling data.table\n")s
+  cat("GenomicFeatures has not been installed....\nInstalling data.table\n")
   if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
+    install.packages("BiocManager",ask=FALSE)
   BiocManager::install("GenomicFeatures")
 }
 
@@ -93,11 +93,13 @@ design_formula <- as.formula(paste("~",args[5]))
 if("salmon" %in% i){
   library(tximport)
   library(GenomicFeatures)
-  files = sampleTable$filename
+  files <- sampleTable$filename
+  files <- as.character(files)
+  names(files) <- sampleTable$samplename
   txdb <- makeTxDbFromGFF(gtf)
   k <- keys(txdb, keytype = "TXNAME")
   tx2gene <- select(txdb, k, "GENEID", "TXNAME")
-  txi <- tximport(files, type = "salmon", tx2gene = txdb)
+  txi <- tximport(files, type = "salmon", tx2gene = tx2gene)
   colnames(txi$counts)<-sampleTable$samplename
   sampleTable <- as.data.frame(sampleTable)
   sampleTable2<-data.frame(sampleTable[,args[5]])
@@ -159,7 +161,7 @@ if(!is.null(ppca)){
 if("tpm" %in% i) {
   if("salmon" %in% i){
   
-  read_counts <- tximport(files, type="salmon",tx2gene = txdb,countsFromAbundance="scaledTPM")
+  read_counts <- tximport(files, type="salmon",tx2gene = tx2gene,countsFromAbundance="scaledTPM")
   read_counts <- read_counts$counts
   colnames(read_counts) <- sampleTable$samplename
   
