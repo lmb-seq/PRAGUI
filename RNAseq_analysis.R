@@ -164,6 +164,9 @@ if("tpm" %in% i) {
   read_counts <- tximport(files, type="salmon",tx2gene = tx2gene,countsFromAbundance="scaledTPM")
   read_counts <- read_counts$counts
   colnames(read_counts) <- sampleTable$samplename
+  read_counts <- as.data.frame(read_counts)
+  read_counts$geneName<-rownames(read_counts)
+  read_counts<- read_counts[,c(ncol(read_counts),1:(ncol(read_counts)-1))] 
   
   }
   
