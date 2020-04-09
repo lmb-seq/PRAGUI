@@ -224,10 +224,14 @@ def split_pe_files(fq_list,pair_tags=['r_1','r_2']):
   return([fq_r1, fq_r2])
 
 
-def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=None, num_cpu=util.MAX_CORES,
+def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=None, 
+          index_args = None, num_cpu=util.MAX_CORES,
           is_single_end = False, mapq=20, pair_tags=['r_1','r_2']):
+          
+  print('TESTING!!!')
+  print(index_args)
     
-  def check_indices(aligner,al_index):
+  def check_indices(aligner,al_index,index_args):
   # Check whether indices are present. If not, create them.  
     if al_index is None:
       index_head = fasta_file.rstrip('.gz')
@@ -240,32 +244,50 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
     if not os.path.exists(al_index):
       util.info('%s indices not found. Generating %s indices...' % (aligner,al_index) )
       os.mkdir(al_index)
-      util.info(aligner == SALMON)
       if aligner == SALMON:
         cmdArgs = [SALMON,
                    'index','-p', str(num_cpu),
                    '-t', fasta_file,
                    '-i', index_head]
-        shutil 
+      if index_args is None:
+        cmdArgs += ['-k', '15']
+      else:
+        index_args = index_args.split(' ')
+        cmdArgs += index_args
+        if '-k' not in index_args:
+          cmdArgs += ['-k', '15']
       if aligner is ALIGNER_STAR:
         cmdArgs = [ALIGNER_STAR,
                    '--runMode','genomeGenerate',
                    '--genomeDir',al_index ,
                    '--genomeFastaFiles', fasta_file ,
                    '--runThreadN',str(num_cpu)]
-        util.call([ALIGNER_STAR,'--version'], stdout=util.LOG_FILE_OBJ)
+        if al_index is not None:
+          index_args = index_args.split(' ')
+          cmdArgs += index_args
       util.call(cmdArgs)  
     return(al_index)
     
-  al_index = check_indices(aligner=aligner,al_index=al_index) 
+  al_index = check_indices(aligner=aligner,al_index=al_index, index_args=index_args) 
     
   if aligner == SALMON:
     util.info('Process fastq files using Salmon...')
+    salmon_v = [SALMON,'-v']
+    util.call(salmon_v, stdout=util.LOG_FILE_OBJ)
     cmdArgs = [SALMON,'quant',
                '-i', al_index,
-               '-l', 'A',
+               # '-l', 'A',
                '-p', str(num_cpu)]
     
+    if al_args is None:
+      cmdArgs += ['-l', 'A',
+                  '--validateMappings']
+    else:
+      al_args = al_args.split()
+      cmdArgs += al_args
+      if '-l' not in cmdArgs:
+        cmdArgs += ['-l', 'A']
+
     out_files = []
     
     def define_output(fq):
@@ -303,6 +325,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
   
   if aligner is ALIGNER_STAR:
     util.info('Aligning reads using STAR...')
+    util.call([ALIGNER_STAR,'--version'], stdout=util.LOG_FILE_OBJ)
     cmdArgs = [ALIGNER_STAR,
                '--genomeDir',al_index ,
                '--runThreadN',str(num_cpu)]
@@ -779,7 +802,7 @@ def run_multiqc(multiqc=True):
 
 def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
                        skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER,organism=None, is_single_end=False, pair_tags=['r_1','r_2'],
-                       al_index =None,al_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded='no',contrast='condition',levels=None,
+                       index_args = None, al_index =None,al_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded='no',contrast='condition',levels=None,
                        cuff_opt=None, cuff_gtf=False,cuffnorm=False, multiqc=True,python_command=None,q=False,log=False, gui=False, status=None):
   
   util.QUIET   = q
@@ -829,7 +852,8 @@ def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, a
 
   # Trim_galore
  
-  trimmed_fq, fastq_dirs = trim_bam(samples_csv=samples_csv, csv=csv, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args, 
+  trimmed_fq, fastq_dirs = trim_bam(samples_csv=samples_csv, csv=csv, trim_galore=trim_galore, 
+                                    skipfastqc=skipfastqc, fastqc_args=fastqc_args, 
                                     is_single_end=is_single_end, pair_tags=pair_tags)
   
   if status is not None:
@@ -839,8 +863,9 @@ def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, a
   
   # Run Aligner
   
-  out_files = align(trimmed_fq=trimmed_fq, fastq_dirs=fastq_dirs, aligner=aligner, al_index =al_index , al_args=al_args, 
-                    num_cpu=num_cpu, fasta_file =fasta_file , is_single_end=is_single_end, mapq=mapq, pair_tags=pair_tags)
+  out_files = align(trimmed_fq=trimmed_fq, fastq_dirs=fastq_dirs, aligner=aligner, al_index =al_index , 
+                    al_args=al_args, index_args = index_args, num_cpu=num_cpu, fasta_file =fasta_file , 
+                    is_single_end=is_single_end, mapq=mapq, pair_tags=pair_tags)
   
 
   if status is not None:
@@ -984,8 +1009,11 @@ if __name__ == '__main__':
   arg_parse.add_argument('-organism', metavar='ORGANISM', default=None,
                          help='Name of the organism used if one of the following: Homo sapiens, Mus musculus, Caenorhabditis elegans, Drosophila Melanogaster, Saccharomyces Cerevisiae or Danio rerio. Please only use keywords: human, mouse, worm, fly, yeast or zebrafish respectively. If other organism is used, system will default to None.')
 
-  arg_parse.add_argument('-al_index ', metavar='STAR_GENOME_INDEX', default=None,
-                         help='Path to directory where genome indices are stored.')
+  arg_parse.add_argument('-al_index', metavar='GENOME_INDEX_PATH', default=None,
+                         help='Path to directory where genome/transcriptome indices are stored.')
+                         
+  arg_parse.add_argument('-index_args', metavar='INDEX_ARGS', default=None,
+                         help='Arguments to be used by software when creating a genome/transcriptome index.')
 
   arg_parse.add_argument('-al_args', default=None,
                          help='Options to be provided to STAR. They should be provided under double quotes. If not provided, STAR will be expecting the following options: --readFilesCommand zcat -c, --outSAMtype BAM, SortedByCoordinate')
@@ -1047,8 +1075,9 @@ if __name__ == '__main__':
   fastqc_args   = args['fastqc_args']
   aligner       = args['al']
   organism      = args['organism']
-  al_index     = args['al_index ']
-  al_args     = args['al_args']
+  al_index      = args['al_index']
+  index_args    = args['index_args']
+  al_args       = args['al_args']
   mapq          = args['mapq']
   num_cpu       = args['cpu'] or None # May not be zero
   pair_tags     = args['pe']
@@ -1072,8 +1101,8 @@ if __name__ == '__main__':
   
   rnaseq_diff_caller(samples_csv=samples_csv, fasta_file =fasta_file , genome_gtf=genome_gtf, geneset_gtf=geneset_gtf, 
                      analysis_type=analysis_type, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args,
-                     aligner=aligner, organism=organism,is_single_end=is_single_end, pair_tags=pair_tags,al_index =al_index ,
-                     al_args=al_args,num_cpu=num_cpu,mapq=mapq,stranded=stranded,contrast=contrast,levels=levels,
+                     aligner=aligner, organism=organism,is_single_end=is_single_end, pair_tags=pair_tags,al_index= al_index,
+                     index_args = index_args, al_args=al_args,num_cpu=num_cpu,mapq=mapq,stranded=stranded,contrast=contrast,levels=levels,
                      cuff_opt=cuff_opt, cuff_gtf=cuff_gtf,cuffnorm=cuffnorm, multiqc=multiqc,python_command=python_command,q=q,
                      log=log,gui=gui,status=status)
 
