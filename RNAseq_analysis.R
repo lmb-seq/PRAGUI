@@ -76,6 +76,7 @@ organism <- args[4]
 
 library(data.table)
 library(DESeq2)
+library(GenomicFeatures)
 
 
 
@@ -90,13 +91,13 @@ setnames(sampleTable,old=names(sampleTable)[1:2],new=c("samplename","filename"))
 directory<-""
 design_formula <- as.formula(paste("~",args[5]))
 
+txdb <- makeTxDbFromGFF(gtf)
+
 if("salmon" %in% i){
   library(tximport)
-  library(GenomicFeatures)
   files <- sampleTable$filename
   files <- as.character(files)
   names(files) <- sampleTable$samplename
-  txdb <- makeTxDbFromGFF(gtf)
   k <- keys(txdb, keytype = "TXNAME")
   tx2gene <- select(txdb, k, "GENEID", "TXNAME")
   txi <- tximport(files, type = "salmon", tx2gene = tx2gene)
@@ -159,55 +160,40 @@ if(!is.null(ppca)){
 # Compute TPMs or FPKMs
 
 if("tpm" %in% i) {
-  if("salmon" %in% i){
-  
-  read_counts <- tximport(files, type="salmon",tx2gene = tx2gene,countsFromAbundance="scaledTPM")
-  read_counts <- read_counts$counts
-  colnames(read_counts) <- sampleTable$samplename
-  read_counts <- as.data.frame(read_counts)
-  read_counts$geneName<-rownames(read_counts)
-  read_counts<- read_counts[,c(ncol(read_counts),1:(ncol(read_counts)-1))] 
-  
+  tpm <- function(counts, lengths) {
+    rate <- counts / lengths
+    rate / sum(rate) * 1e6
   }
   
-  else {
+  exons.list.per.gene <- exonsBy(txdb,by="gene")
   
-    library("GenomicFeatures")
-    #txdb <- makeTxDbFromGFF("/home/paulafp/Documents/temp/WS255_WBcel235/c_elegans.PRJNA13758.WS255.canonical_geneset.gtf")
-    txdb <- makeTxDbFromGFF(gtf)
-    exons.list.per.gene <- exonsBy(txdb,by="gene")
+  exons.list.per.gene <- reduce(exons.list.per.gene)
+  exons.list.per.gene <- as.data.table(exons.list.per.gene)
+  gene_width <- exons.list.per.gene[,sum(width),by=group_name]
   
-    exons.list.per.gene <- reduce(exons.list.per.gene)
-    exons.list.per.gene <- as.data.table(exons.list.per.gene)
-    gene_width <- exons.list.per.gene[,sum(width),by=group_name]
+  read_counts <- as.data.frame(counts(dds_original))
+  samples <- colnames(read_counts)
+
+  read_counts$group_name <- row.names(read_counts)
+  read_counts <-  as.data.table(read_counts)
+  setkey(read_counts,group_name)
+
+  setkey(gene_width,group_name)
+
+  read_counts <- read_counts[gene_width]
   
-    tpm <- function(counts, lengths) {
-      rate <- counts / lengths
-      rate / sum(rate) * 1e6
-    }
+  read_counts <- read_counts[!is.na(get(names(read_counts)[1]))]
   
-    read_counts <- as.data.frame(counts(dds_original))
-    samples <- colnames(read_counts)
-  
-    read_counts$group_name <- row.names(read_counts)
-    read_counts <-  as.data.table(read_counts)
-    setkey(read_counts,group_name)
-  
-    setkey(gene_width,group_name)
-  
-    read_counts <- read_counts[gene_width]
-  
-    sapply(samples,function(x){
+  sapply(samples,function(x){
       read_counts[,eval(x):=tpm(get(x),V1)]
     })
-  
-    read_counts <- as.data.frame(read_counts)
-    #row.names(read_counts)<-read_counts$group_name
-    read_counts$geneName <- read_counts$group_name
-    read_counts$group_name <- NULL
-    read_counts <- read_counts[,c("geneName",samples)]
-  
-  }
+
+  read_counts <- as.data.frame(read_counts)
+  #row.names(read_counts)<-read_counts$group_name
+  read_counts$geneName <- read_counts$group_name
+  read_counts$group_name <- NULL
+  read_counts <- read_counts[,c("geneName",samples)]
+
   
   tpm_file <-gsub('DESeq_table.txt','tpm.txt',args[1])
   write.table(x = read_counts,file = tpm_file,quote = FALSE,sep="\t",row.names = FALSE)
