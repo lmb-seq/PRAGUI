@@ -157,7 +157,6 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       #  f = f[:-2]
       #  f = '.'.join(f)
       trimmed_filename = od + '/' + f +'_trimmed.fq.gz'
-      print(trimmed_filename)
       if exists_skip(trimmed_filename):
         fastq_paths2.append(f0)
       trimmed_fq.append(trimmed_filename)
@@ -224,12 +223,26 @@ def split_pe_files(fq_list,pair_tags=['r_1','r_2']):
   return([fq_r1, fq_r2])
 
 
+def sam_to_bam_parallel(sam_list,bam_list,mapq,num_cpu):
+  def merge(list1, list2):
+    merged_list = [(list1[i], list2[i]) for i in range(0, len(list1))] 
+    return(merged_list)
+  files_list  = merge(sam_list,bam_list)
+  def sam_to_bam(files,mapq):
+    sam,bam = files
+    cmdArgs = ['samtools','view', '-b']
+    if mapq > 0 :
+      cmdArgs += ['-q',str(mapq)]
+    cmdArgs += [sam,'-o',bam]
+    util.call(cmdArgs)
+    os.remove(sam)
+  common_args = [mapq]
+  util.parallel_split_job(sam_to_bam,files_list,common_args, num_cpu)
+
+
 def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=None, 
           index_args = None, num_cpu=util.MAX_CORES,
           is_single_end = False, mapq=20, pair_tags=['r_1','r_2']):
-          
-  print('TESTING!!!')
-  print(index_args)
     
   def check_indices(aligner,al_index,index_args):
   # Check whether indices are present. If not, create them.  
@@ -244,6 +257,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
     if not os.path.exists(al_index):
       util.info('%s indices not found. Generating %s indices...' % (aligner,al_index) )
       os.mkdir(al_index)
+      # Index for Salmon
       if aligner == SALMON:
         cmdArgs = [SALMON,
                    'index','-p', str(num_cpu),
@@ -256,6 +270,18 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
           cmdArgs += index_args
         if '-k' not in index_args:
           cmdArgs += ['-k', '15']
+        else:
+          index_args = index_args.split(' ')
+          cmdArgs += index_args
+        if '-k' not in index_args:
+          cmdArgs += ['-k', '15'] 
+      # Index for HISAT2   
+      if aligner == ALIGNER_HISAT2:
+        cmdArgs = ['hisat2-build',
+                   '-p',str(num_cpu),
+                   fasta_file,
+                   index_head]
+      # Index for STAR
       if aligner is ALIGNER_STAR:
         cmdArgs = [ALIGNER_STAR,
                    '--runMode','genomeGenerate',
@@ -290,7 +316,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
 
     out_files = []
     
-    def define_output(fq):
+    def define_output(fq,k):
         fo = os.path.basename(fq)
         fo = fastq_dirs[k]+ '/' + fo
         quant = fo + '_quant'
@@ -301,7 +327,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
     if is_single_end:
       util.info('Running single-end mode...')
       for f in trimmed_fq:
-        quant , quant_out = define_output(f)
+        quant , quant_out = define_output(f,k)
         cmdArgs0 = cmdArgs + ['-r',f,'-o',quant]
         if exists_skip(quant_out):
           util.call(cmdArgs0)
@@ -314,15 +340,78 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
       for i in range(l):
         trimmed_fq_r1 = read1_list[i]
         trimmed_fq_r2 = read2_list[i]
-      #for trimmed_fq_r1, trimmed_fq_r2 in trimmed_fq:
-        quant , quant_out = define_output(trimmed_fq_r1)
+        quant , quant_out = define_output(trimmed_fq_r1,k)
         if exists_skip(quant_out):
           cmdArgs0 = cmdArgs + ['-1',trimmed_fq_r1, '-2', trimmed_fq_r2,'-o',quant]
           util.call(cmdArgs0)
         out_files.append(quant_out)
         k+=1
-         
   
+  if aligner == ALIGNER_HISAT2:
+    util.info('Aligning reads using HISAT2...')
+    util.call([ALIGNER_STAR,'--version'], stdout=util.LOG_FILE_OBJ)
+    cmdArgs = [ALIGNER_HISAT2,
+               '-p',str(num_cpu),
+               '-x', al_index]
+    if al_args is None:
+      al_args = []
+    else:
+      al_args  = al_args.split()
+      cmdArgs += al_args
+    
+    sam_list = []
+    bam_list = []
+    sam_list0 = []
+    bam_list0 = []
+    k=0
+    if is_single_end:
+      util.info('Running single-end mode...')
+      for f in trimmed_fq:
+        fo = os.path.basename(f)
+        fo = fastq_dirs[k]+ '/' + fo
+        sam = fo + '.sam'
+        sam_list.append(sam)
+        hisat_log = fo + '.log'
+        if mapq > 0 :
+          bam = '%s.sorted_fil_%d.out.bam' % (fo,mapq)
+        else:
+          bam = '%s.sorted.out.bam' % fo
+        bam_list.append(bam)
+        if exists_skip(bam):
+          sam_list0.append(sam)
+          bam_list0.append(bam)
+          cmdArgs0 = cmdArgs + ['-U',f,'-S',sam]
+          util.call(cmdArgs0, stdout=hisat_log)
+        k +=1
+    else:
+      util.info('Running paired-end mode...')
+      read1_list, read2_list = split_pe_files(trimmed_fq,pair_tags=pair_tags)
+      l = len(read1_list)
+      for i in range(l):
+        trimmed_fq_r1 = read1_list[i]
+        trimmed_fq_r2 = read2_list[i]
+        fo = os.path.basename(trimmed_fq_r1)
+        fo = fastq_dirs[k] + '/' + fo
+        sam = fo + '.sam'
+        sam_list.append(sam)
+        hisat_log = fo + '.log'
+        if mapq > 0 :
+          bam = '%s.pe.sorted_fil_%d.out.bam' % (fo,mapq)
+        else:
+          bam = '%s.pe.sorted.out.bam' % fo
+        bam_list.append(bam)
+        if exists_skip(sam):
+          sam_list0.append(sam)
+          bam_list0.append(bam)
+          cmdArgs0 = cmdArgs + ['-1',trimmed_fq_r1, '-2', trimmed_fq_r2,'-S',sam]
+          util.call(cmdArgs0, stdout=hisat_log)
+        k +=1
+    if len(bam_list0)>0:
+      util.info('Converting sam to bam...')
+      sam_to_bam_parallel(sam_list0,bam_list0,mapq,num_cpu)
+    out_files = bam_list
+       
+    
   if aligner is ALIGNER_STAR:
     bam_files = []
     util.info('Aligning reads using STAR...')
@@ -336,11 +425,11 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
                   '--outSAMtype','BAM','SortedByCoordinate',
                   '--readFilesIn']
     else:
-      al_args = al_args.split()
+      al_args  = al_args.split()
       cmdArgs += al_args
       cmdArgs.append('--readFilesIn')
+    
     k=0
-
     if is_single_end:
 
       util.info('Running single-end mode...')
@@ -402,24 +491,19 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
             os.remove('./Aligned.sortedByCoord.out.bam')
           else:
             os.rename('./Aligned.sortedByCoord.out.bam',bam)
-        k+=1
-        
+        k+=1  
     out_files = bam_files
 
   return(out_files)
 
 
 def sort_bam_parallel(bam_list,num_cpu):
-
-
   def sort_bam(bam):
     bam_out = os.path.dirname(bam) + '/' + os.path.basename(bam) + '_sorted.bam'
     if exists_skip(bam_out):
       cmdArgs = ['samtools','sort','-n',bam]
       util.call(cmdArgs,stdout=bam_out)
     return(bam_out)
-
-
   common_args = []
   sorted_bam_list = util.parallel_split_job(sort_bam,bam_list,common_args, num_cpu)
   return(sorted_bam_list)
