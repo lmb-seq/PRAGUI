@@ -249,11 +249,11 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
                    'index','-p', str(num_cpu),
                    '-t', fasta_file,
                    '-i', index_head]
-      if index_args is None:
-        cmdArgs += ['-k', '15']
-      else:
-        index_args = index_args.split(' ')
-        cmdArgs += index_args
+        if index_args is None:
+          cmdArgs += ['-k', '15']
+        else:
+          index_args = index_args.split(' ')
+          cmdArgs += index_args
         if '-k' not in index_args:
           cmdArgs += ['-k', '15']
       if aligner is ALIGNER_STAR:
@@ -262,7 +262,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
                    '--genomeDir',al_index ,
                    '--genomeFastaFiles', fasta_file ,
                    '--runThreadN',str(num_cpu)]
-        if al_index is not None:
+        if index_args is not None:
           index_args = index_args.split(' ')
           cmdArgs += index_args
       util.call(cmdArgs)  
@@ -324,13 +324,15 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
          
   
   if aligner is ALIGNER_STAR:
+    bam_files = []
     util.info('Aligning reads using STAR...')
     util.call([ALIGNER_STAR,'--version'], stdout=util.LOG_FILE_OBJ)
     cmdArgs = [ALIGNER_STAR,
                '--genomeDir',al_index ,
                '--runThreadN',str(num_cpu)]
     if al_args is None:
-      cmdArgs += ['--readFilesCommand', 'zcat', '-c',
+    #  cmdArgs += ['--readFilesCommand', 'zcat', '-c',
+      cmdArgs +=  ['--readFilesCommand', 'gunzip', '-c',
                   '--outSAMtype','BAM','SortedByCoordinate',
                   '--readFilesIn']
     else:
