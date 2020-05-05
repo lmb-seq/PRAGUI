@@ -245,44 +245,61 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
           is_single_end = False, mapq=20, pair_tags=['r_1','r_2']):
     
   def check_indices(aligner,al_index,index_args):
+    cmdArgs = []
+    index_head = None
   # Check whether indices are present. If not, create them.  
     if al_index is None:
-      index_head = fasta_file.rstrip('.gz')
-      index_head = index_head.split('.')
-      index_head = index_head[:-1]
-      index_head = '.'.join(index_head)
-      al_index = index_head
+      al_index   = "%s/%s_index" % (os.path.dirname(fasta_file),aligner)    
       msg = 'Folder where %s indices are located hasn\'t been specified. Program will default to %s...' % (aligner,al_index)
       util.warn(msg)
     if not os.path.exists(al_index):
-      util.info('%s indices not found. Generating %s indices...' % (aligner,al_index) )
+      util.info('%s indices not found. Generating indices to be saved at %s...' % (aligner,al_index) )
       os.mkdir(al_index)
-      # Index for Salmon
-      if aligner == SALMON:
+    # Index for Salmon
+    if aligner == SALMON:
+      check = al_index + '/ref_indexing.log'
+      if not os.path.exists(check):
         cmdArgs = [SALMON,
-                   'index','-p', str(num_cpu),
-                   '-t', fasta_file,
-                   '-i', index_head]
+                   'index','-p', str(num_cpu)]
         if index_args is None:
           cmdArgs += ['-k', '15']
         else:
           index_args = index_args.split(' ')
           cmdArgs += index_args
-        if '-k' not in index_args:
+        if '-k' not in cmdArgs:
           cmdArgs += ['-k', '15']
-        else:
-          index_args = index_args.split(' ')
-          cmdArgs += index_args
-        if '-k' not in index_args:
-          cmdArgs += ['-k', '15'] 
-      # Index for HISAT2   
-      if aligner == ALIGNER_HISAT2:
+        cmdArgs += ['-t', fasta_file,
+                   '-i', al_index]
+    # Index for HISAT2  
+    if aligner == ALIGNER_HISAT2:
+      # dir = os.path.dirname(al_index)
+      if not os.path.exists(al_index):
+        os.mkdir(al_index)
+      flag = 0
+      for file in os.listdir(al_index):
+        if 'ht2' in file:
+          index_head = file
+          flag +=1
+      if flag == 0:
+        fasta_file_name = os.path.basename(fasta_file)
+        index_head = fasta_file_name.rstrip('.gz')
+        index_head = index_head.split('.')
+        index_head = index_head[:-1]
+        index_head = '.'.join(index_head)
+        index_head = "%s/%s" % (al_index,index_head)  
         cmdArgs = ['hisat2-build',
                    '-p',str(num_cpu),
                    fasta_file,
                    index_head]
-      # Index for STAR
-      if aligner is ALIGNER_STAR:
+      else:
+        index_head = index_head.split('.')
+        index_head = index_head[:-2]
+        index_head = '.'.join(index_head)
+        index_head = "%s/%s" % (al_index,index_head)
+    # Index for STAR
+    if aligner is ALIGNER_STAR:
+      check = al_index + 'genomeParameters.txt'
+      if not os.path.exists(check):
         cmdArgs = [ALIGNER_STAR,
                    '--runMode','genomeGenerate',
                    '--genomeDir',al_index ,
@@ -291,10 +308,11 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         if index_args is not None:
           index_args = index_args.split(' ')
           cmdArgs += index_args
+    if cmdArgs != []:
       util.call(cmdArgs)  
-    return(al_index)
+    return([al_index,index_head])
     
-  al_index = check_indices(aligner=aligner,al_index=al_index, index_args=index_args) 
+  al_index, index_head = check_indices(aligner=aligner,al_index=al_index, index_args=index_args) 
     
   if aligner == SALMON:
     util.info('Process fastq files using Salmon...')
@@ -349,10 +367,10 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
   
   if aligner == ALIGNER_HISAT2:
     util.info('Aligning reads using HISAT2...')
-    util.call([ALIGNER_STAR,'--version'], stdout=util.LOG_FILE_OBJ)
+    util.call([ALIGNER_HISAT2,'--version'], stdout=util.LOG_FILE_OBJ)
     cmdArgs = [ALIGNER_HISAT2,
                '-p',str(num_cpu),
-               '-x', al_index]
+               '-x', index_head]
     if al_args is None:
       al_args = []
     else:
@@ -400,7 +418,9 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         else:
           bam = '%s.pe.sorted.out.bam' % fo
         bam_list.append(bam)
-        if exists_skip(sam):
+        print(exists_skip(bam))
+        print(exists_skip(sam))
+        if exists_skip(bam):
           sam_list0.append(sam)
           bam_list0.append(bam)
           cmdArgs0 = cmdArgs + ['-1',trimmed_fq_r1, '-2', trimmed_fq_r2,'-S',sam]
