@@ -185,7 +185,7 @@ class Window(QWidget):
       label.setFont(mySetBold)
       label.setAlignment(Qt.AlignCenter)
       return label
-    self.setWindowTitle('PRAGUI')
+    #self.setWindowTitle('PRAGUI')
     mySetBold = QFont()
     mySetBold.setBold(True)
     self.cwd = os.getcwd()
@@ -196,6 +196,8 @@ class Window(QWidget):
     self.csv_opt.activated[str].connect(self.csv_func)
     self.an_lbl  = QLabel('ANALYSIS',self)
     self.an_lbl  = section_label(self.an_lbl)
+    self.txqt_lbl  = QLabel('Transcript Quantification',self)
+    self.txqt_opt  = MyQComboBox(self,['STAR + HTSeq', 'HISAT2 + HTSeq', 'Salmon'])
     self.de_lbl  = QLabel('Statistical Method',self)
     self.de_opt  = MyQComboBox(self,['DESeq','Cufflinks'])
     self.lib_lbl = QLabel('Library',self)
@@ -215,7 +217,7 @@ class Window(QWidget):
     self.software_args = section_label(self.software_args)
     self.tgalore  = ParseSoftwareArgs(self,'TrimGalore')
     self.fastqc   = ParseSoftwareArgs(self,'FastQC')
-    self.star     = ParseSoftwareArgs(self,'STAR')
+    self.al     = ParseSoftwareArgs(self,'Aligner')
     self.cuff_opt = ParseSoftwareArgs(self,'Cufflinks')
     self.mapq            = ParseSoftwareArgs(self,'MAPQ threshold')
     self.cpu             = ParseSoftwareArgs(self,'Number of CPUs')
@@ -250,23 +252,25 @@ class Window(QWidget):
     grid.addWidget(self.LibOptsGroupBox,6,0,3,3)
     grid.addWidget(QLabel('',self),9,0,1,3) # add empty row
     grid.addWidget(self.an_lbl,10,0,1,4)
-    grid.addWidget(self.AnOptsGroupBox,11,0,3,3)
-    grid.addWidget(QLabel('',self),14,0,1,5) # add empty row
-    grid.addWidget(self.software_args,15,0,1,3)
-    grid.addWidget(self.SoftArgsGroupBox,19,0,2,3)
-    grid.addWidget(QLabel('',self),21,0,1,3) # add empty row
-    grid.addWidget(self.opts_lbl,22,0,1,4)
-    grid.addWidget(self.ProcOptsGroupBox,23,0,3,3)
-    grid.addWidget(QLabel('',self),27,0,1,3) # add empty row
-    grid.addWidget(submit_btn,28,1)
-    grid.addWidget(quit_btn,28,2)
+    grid.addWidget(self.AnOptsGroupBox,11,0,4,3)
+    grid.addWidget(QLabel('',self),15,0,1,5) # add empty row
+    grid.addWidget(self.software_args,16,0,2,3)
+    grid.addWidget(self.SoftArgsGroupBox,20,0,2,3)
+    grid.addWidget(QLabel('',self),22,0,1,3) # add empty row
+    grid.addWidget(self.opts_lbl,23,0,1,4)
+    grid.addWidget(self.ProcOptsGroupBox,24,0,3,3)
+    grid.addWidget(QLabel('',self),28,0,1,3) # add empty row
+    grid.addWidget(submit_btn,29,1)
+    grid.addWidget(quit_btn,29,2)
+    
+    
     
     # Connect to submit button
     submit_btn.clicked.connect(self.on_submit)
     
     self.setLayout(grid)
-    centre(self)
-    self.show()
+#    centre(self)
+#    self.show()
   
   # Input Files
   def createInputFilesGroup(self):
@@ -296,10 +300,12 @@ class Window(QWidget):
     self.AnOptsGroupBox = MyQGroupBox('')
     grid3 = QGridLayout()
     grid3.addWidget(self.mapq,1,0,1,3)
-    grid3.addWidget(self.de_lbl,2,0,1,1)
-    grid3.addWidget(self.de_opt,2,1,1,2)
-    grid3.addWidget(self.cuff_gtf,3,0,1,1)
-    grid3.addWidget(self.cuffnorm,3,1,1,1)
+    grid3.addWidget(self.txqt_lbl,2,0,1,1)
+    grid3.addWidget(self.txqt_opt,2,1,1,2)
+    grid3.addWidget(self.de_lbl,3,0,1,1)
+    grid3.addWidget(self.de_opt,3,1,1,2)
+    grid3.addWidget(self.cuff_gtf,4,0,1,1)
+    grid3.addWidget(self.cuffnorm,4,1,1,1)
     self.AnOptsGroupBox.setLayout(grid3)
     
   # Software Arguments
@@ -309,7 +315,7 @@ class Window(QWidget):
     grid4.setHorizontalSpacing(30)
     grid4.addWidget(self.tgalore,1,0,1,2)
     grid4.addWidget(self.fastqc,1,2,1,2)
-    grid4.addWidget(self.star,2,0,1,2)
+    grid4.addWidget(self.al,2,0,1,2)
     grid4.addWidget(self.cuff_opt,2,2,1,2)
     self.SoftArgsGroupBox.setLayout(grid4)
     
@@ -383,12 +389,13 @@ class Window(QWidget):
     self.lib    = self.lib_opt.selected
     self.org    = self.org_opt.selected
     self.strand = self.str_opt.selected
+    self.txqt   = self.txqt_opt.selected
     self.fa_file      = self.fa_file_frame.lbox.text()
     self.gtf_file     = self.gtf_file_frame.lbox.text()
     self.geneset_file = self.geneset_file_frame.lbox.text()
     self.tgalore_args   = self.tgalore.lbox.text()
     self.fastqc_args    = self.fastqc.lbox.text()
-    self.star_args      = self.star.lbox.text()
+    self.al_args      = self.al.lbox.text()
     self.cuff_args      = self.cuff_opt.lbox.text()
     self.mapq_args      = self.mapq.lbox.text()
     self.cpu_args       = self.cpu.lbox.text()
@@ -410,12 +417,17 @@ class Window(QWidget):
     strand_lib = {'from START (5\' to 3\')':'yes',
                   'from END (3\' to 5\')':'reverse',
                   'both':'no'}
-    dict_args = {'analysis_type': self.de,
-                 'genome_gtf'   : self.gtf_file,
-                 'organism'     : self.org,
-                 'stranded'     : strand_lib[self.strand],
-                 'contrast'     : self.contrast,
-                 'status'       : self.status
+    dict_aux  = {'STAR + HTSeq'   : 'STAR',
+                 'HISAT2 + HTSeq' : 'hisat2',
+                 'Salmon'         : 'salmon'}
+                 
+    dict_args = {'al'            : dict_aux[self.txqt],
+                 'analysis_type' : self.de,
+                 'genome_gtf'    : self.gtf_file,
+                 'organism'      : self.org,
+                 'stranded'      : strand_lib[self.strand],
+                 'contrast'      : self.contrast,
+                 'status'        : self.status
                  }
     if len(self.geneset_file)>0:
       dict_args['geneset_gtf'] = '"%s"' % self.gtf_file
@@ -423,15 +435,15 @@ class Window(QWidget):
       dict_args['trim_galore'] = '"%s"' % self.tgalore_args
     if len(self.fastqc_args)>0:
       dict_args['fastqc_args'] = '"%s"' % self.fastqc_args
-    if len(self.star_args)>0:
-      dict_args['star_args']   = '"%s"' % self.star_args
+    if len(self.al_args)>0:
+      dict_args['al_args']   = '"%s"' % self.al_args
     if len(self.cuff_args)>0:
       dict_args['cuff_opt']    = '"%s"' % self.cuff_args
     if len(self.mapq_args)>0:
       dict_args['mapq']        = self.mapq_args 
 #    if self.lib == 'paired-end':
 #      dict_args['pe']   = self.pe_tags
-    if self.lib == 'paired-end':
+    if self.lib == 'single-end':
       self.flags.append('-se')
     if self.skipmultiqc.isChecked():
       self.flags.append('-disable_multiqc')
@@ -507,10 +519,10 @@ class Window(QWidget):
           self.timer.stop()
           self.progress.close()
         os.remove('qstat.out')
-          
-        
-  
+           
   def on_submit(self):
+    print("TESTING...")
+    print(self.lib_opt.selected)
     self.counter = 0
     self.status =  'status_%s.txt' % uuid.uuid4()
     status_obj = open(self.status,'w')
@@ -528,6 +540,26 @@ class Window(QWidget):
       # submit.signals.finished.connect(self.print_job_done)
     self.threadpool.start(submit)
 
+
+##########################################
+
+class MyMainWindow(QMainWindow):
+  def __init__(self):
+    super().__init__()
+    self.setWindowTitle('PRAGUI')
+    self.widget = Window()
+    
+    self.scroll = QScrollArea()
+    self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+    self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    self.scroll.setWidgetResizable(True)
+    self.scroll.setWidget(self.widget)
+
+    self.setCentralWidget(self.scroll)
+    centre(self)
+    
+    self.show()
+    
 
 #####################################################
  
@@ -663,6 +695,7 @@ if __name__ == '__main__':
 
   app = QApplication(sys.argv)
 
-  window = Window()
+  #window = Window()
+  window = MyMainWindow()
   app.exec_()
 

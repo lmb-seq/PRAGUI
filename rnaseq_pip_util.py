@@ -432,7 +432,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
     out_files = bam_list
        
     
-  if aligner is ALIGNER_STAR:
+  if aligner == ALIGNER_STAR:
     bam_files = []
     util.info('Aligning reads using STAR...')
     util.call([ALIGNER_STAR,'--version'], stdout=util.LOG_FILE_OBJ)
@@ -440,8 +440,8 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
                '--genomeDir',al_index ,
                '--runThreadN',str(num_cpu)]
     if al_args is None:
-    #  cmdArgs += ['--readFilesCommand', 'zcat', '-c',
-      cmdArgs +=  ['--readFilesCommand', 'gunzip', '-c',
+      cmdArgs += ['--readFilesCommand', 'zcat', '-c',
+    #  cmdArgs +=  ['--readFilesCommand', 'gunzip', '-c',   # option needed for mac users
                   '--outSAMtype','BAM','SortedByCoordinate',
                   '--readFilesIn']
     else:
@@ -453,7 +453,6 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
     if is_single_end:
 
       util.info('Running single-end mode...')
-
       for f in trimmed_fq:
         fo = os.path.basename(f)
         fo = fastq_dirs[k]+ '/' + fo
@@ -478,14 +477,14 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
           else:
             os.rename('./Aligned.sortedByCoord.out.bam',bam)
         k+=1
-
+    
     else:
-
+      
       util.info('Running paired-end mode...')
-
+      
       trimmed_fq_r1, trimmed_fq_r2 = split_pe_files(trimmed_fq,pair_tags=pair_tags)
       util.info(trimmed_fq_r1)
-
+      
       for i in range(0,len(trimmed_fq_r1)):
         fo = os.path.basename(trimmed_fq_r1[i])
         fo = fastq_dirs[k] + '/' + fo
@@ -493,9 +492,9 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
           bam = '%s.pe.sorted_fil_%d.out.bam' % (fo,mapq)
         else:
           bam = '%s.pe.sorted.out.bam' % fo
-
+        
         bam_files.append(bam)
-
+        
         if exists_skip(bam):
           cmdArgs_pe = list(cmdArgs)
           cmdArgs_pe += [trimmed_fq_r1[i],trimmed_fq_r2[i]]
@@ -1110,7 +1109,7 @@ if __name__ == '__main__':
                          help='Option to skip fastqc step. If this option is set, the option -fastqc_args will be ignored.')
 
   arg_parse.add_argument('-al', metavar='ALIGNER_NAME', default=DEFAULT_ALIGNER,
-                         help='Name of the program to perform the genome alignment/mapping: Default: %s Other options: %s' % (DEFAULT_ALIGNER, OTHER_ALIGNERS))
+                         help='Name of the program to perform the genome alignment/mapping. Default: STAR, Other options: hisat2, , salmon')# Default: %s Other options: %s' % (DEFAULT_ALIGNER, OTHER_ALIGNERS))
 
   arg_parse.add_argument('-organism', metavar='ORGANISM', default=None,
                          help='Name of the organism used if one of the following: Homo sapiens, Mus musculus, Caenorhabditis elegans, Drosophila Melanogaster, Saccharomyces Cerevisiae or Danio rerio. Please only use keywords: human, mouse, worm, fly, yeast or zebrafish respectively. If other organism is used, system will default to None.')
@@ -1122,7 +1121,7 @@ if __name__ == '__main__':
                          help='Arguments to be used by software when creating a genome/transcriptome index.')
 
   arg_parse.add_argument('-al_args', default=None,
-                         help='Options to be provided to STAR. They should be provided under double quotes. If not provided, STAR will be expecting the following options: --readFilesCommand zcat -c, --outSAMtype BAM, SortedByCoordinate')
+                         help='Options to be provided to the aligner (or salmon). They should be provided under double quotes. If not provided, default options for STAR will be expecting the following options: --readFilesCommand zcat -c, --outSAMtype BAM, SortedByCoordinate')
 
   arg_parse.add_argument('-mapq', default=20, type=int,
                          help='Threshold below which reads will be removed from the aligned bam file.')
