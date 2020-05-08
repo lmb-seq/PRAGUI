@@ -53,11 +53,11 @@ class RunPRAGUI(QRunnable):
 class MyFileFetchFrame(QFrame):
   """
   Class with a frame to find and load filenames. 
-  It contains a lable (QLabel), 
+  It contains a label (QLabel), 
   a line to contain the full path of the file (QLineEdit) and 
   a browse button (QPushButton).
   """
-  def __init__(self, parent, lbl_txt, btn_txt,cwd=None):
+  def __init__(self, parent, lbl_txt, btn_txt,cwd=None,folder=False):
     QFrame.__init__(self, parent)
     # Set Widgets
     lbl  = QLabel(lbl_txt, self)
@@ -74,12 +74,19 @@ class MyFileFetchFrame(QFrame):
     btn.clicked.connect(lambda : self.showDialog(self.lbox))    
     # Show Frame
     self.setLayout(grid)
+    self.folder = folder
   def showDialog(self,text_box):
     if self.cwd is None:
-      fname = QFileDialog.getOpenFileName(self, 'Open file', self.parent().parent().cwd)
+      if self.folder:
+        fname = [str(QFileDialog.getExistingDirectory(self, 'Select Directory',self.parent().parent().cwd))]
+      else:
+        fname = QFileDialog.getOpenFileName(self, 'Open file', self.parent().parent().cwd)
       self.parent().parent().cwd = os.path.dirname(fname[0])
     else:
-      fname = QFileDialog.getOpenFileName(self, 'Open file', self.cwd)
+      if self.folder:
+        fname = [str(QFileDialog.getExistingDirectory(self, 'Select Directory',self.cwd))]
+      else:
+        fname = QFileDialog.getOpenFileName(self, 'Open file', self.cwd)
     if fname[0]:
        #self.fname = fname[0]
        #text_box.setText(self.fname)
@@ -215,10 +222,12 @@ class Window(QWidget):
     self.geneset_file_frame = MyFileFetchFrame(self,'Geneset File','Browse')
     self.software_args = QLabel('SOFTWARE ARGUMENTS',self)
     self.software_args = section_label(self.software_args)
-    self.tgalore  = ParseSoftwareArgs(self,'TrimGalore')
-    self.fastqc   = ParseSoftwareArgs(self,'FastQC')
-    self.al     = ParseSoftwareArgs(self,'Aligner')
-    self.cuff_opt = ParseSoftwareArgs(self,'Cufflinks')
+    self.tgalore   = ParseSoftwareArgs(self,'TrimGalore')
+    self.fastqc    = ParseSoftwareArgs(self,'FastQC')
+    self.al        = ParseSoftwareArgs(self,'Aligner')
+    self.index_dir_frame   = MyFileFetchFrame(self,'Index Folder','Browse',folder=True)
+    self.index_args  = ParseSoftwareArgs(self,'Index')
+    self.cuff_opt    = ParseSoftwareArgs(self,'Cufflinks')
     self.mapq            = ParseSoftwareArgs(self,'MAPQ threshold')
     self.cpu             = ParseSoftwareArgs(self,'Number of CPUs')
     #self.contrast        = ParseSoftwareArgs(self,'Contrast')
@@ -316,7 +325,9 @@ class Window(QWidget):
     grid4.addWidget(self.tgalore,1,0,1,2)
     grid4.addWidget(self.fastqc,1,2,1,2)
     grid4.addWidget(self.al,2,0,1,2)
-    grid4.addWidget(self.cuff_opt,2,2,1,2)
+    grid4.addWidget(self.index_dir_frame,2,2,1,2)
+    grid4.addWidget(self.index_args,3,0,1,2)
+    grid4.addWidget(self.cuff_opt,3,2,1,2)
     self.SoftArgsGroupBox.setLayout(grid4)
     
   # Process Options 
@@ -393,9 +404,11 @@ class Window(QWidget):
     self.fa_file      = self.fa_file_frame.lbox.text()
     self.gtf_file     = self.gtf_file_frame.lbox.text()
     self.geneset_file = self.geneset_file_frame.lbox.text()
+    self.index_dir    = self.index_dir_frame.lbox.text()
     self.tgalore_args   = self.tgalore.lbox.text()
     self.fastqc_args    = self.fastqc.lbox.text()
-    self.al_args      = self.al.lbox.text()
+    self.al_args        = self.al.lbox.text()
+    self.index_args2    = self.index_args.lbox.text()
     self.cuff_args      = self.cuff_opt.lbox.text()
     self.mapq_args      = self.mapq.lbox.text()
     self.cpu_args       = self.cpu.lbox.text()
@@ -436,7 +449,11 @@ class Window(QWidget):
     if len(self.fastqc_args)>0:
       dict_args['fastqc_args'] = '"%s"' % self.fastqc_args
     if len(self.al_args)>0:
-      dict_args['al_args']   = '"%s"' % self.al_args
+      dict_args['al_args']     = '"%s"' % self.al_args
+    if len(self.index_dir)>0:
+      dict_args['al_index']    = self.index_dir
+    if len(self.index_args2)>0:
+      dict_args['index_args']  = '"%s"' % self.index_args2
     if len(self.cuff_args)>0:
       dict_args['cuff_opt']    = '"%s"' % self.cuff_args
     if len(self.mapq_args)>0:
@@ -611,7 +628,7 @@ class BuildCSV(QWidget):
   
   def file_look_up(self,row,column):
     if column in [1,2]:
-      fname = QFileDialog.getOpenFileName(self, 'Open file', self.cwd)
+      fname = QFileDialog.getOpenFileName(self, 'Open file', cwd=self.cwd)
       self.cwd = os.path.dirname(fname[0])
       if fname[0]:
         self.samples_table.setItem(row,column,QTableWidgetItem(fname[0]))

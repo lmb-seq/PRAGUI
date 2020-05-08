@@ -264,7 +264,9 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         if index_args is None:
           cmdArgs += ['-k', '15']
         else:
+          print(index_args)
           index_args = index_args.split(' ')
+          print(index_args)
           cmdArgs += index_args
         if '-k' not in cmdArgs:
           cmdArgs += ['-k', '15']
@@ -389,7 +391,6 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         fo = fastq_dirs[k]+ '/' + fo
         sam = fo + '.sam'
         sam_list.append(sam)
-        hisat_log = fo + '.log'
         if mapq > 0 :
           bam = '%s.sorted_fil_%d.out.bam' % (fo,mapq)
         else:
@@ -399,7 +400,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
           sam_list0.append(sam)
           bam_list0.append(bam)
           cmdArgs0 = cmdArgs + ['-U',f,'-S',sam]
-          util.call(cmdArgs0, stdout=hisat_log)
+          util.call(cmdArgs0)
         k +=1
     else:
       util.info('Running paired-end mode...')
