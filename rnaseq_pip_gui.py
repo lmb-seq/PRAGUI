@@ -468,12 +468,13 @@ class Window(QWidget):
       dict_args['cpu']       = self.cpu_args
     for key, item in dict_args.items(): 
        key = '-' + key
-       args += [key, str(item)]
+       aux = '='.join([key, str(item)])
+       args.append(aux)
     args += self.flags
     # Run PRAGUI on the LMB cluster as a qsub job
     if self.qsub.isChecked():
       if self.lib == 'paired-end':
-        args = args + ['pe',self.pe_tags]
+        args = args + ['-pe',self.pe_tags]
       command = ' '.join(args)
       command = 'module load python3/3.7.1\nmodule load multiqc\nmodule load R\npython3 /net/nfs1/public/genomics/PRAGUI/rnaseq_pip_util.py %s ' % (command)
       temp = 'job_' + util.get_rand_string(5) + ".sh"
@@ -490,7 +491,7 @@ class Window(QWidget):
         args = args + ['-pe'] + self.pe_tags.split(' ')
       pragui = '%s/rnaseq_pip_util.py' % os.path.dirname(os.path.realpath(__file__))
       args   = ['python3',pragui] + args
-      util.call(args)
+      util.call(args, shell=True)
       #util.info(' '.join(args))
       #proc = Popen(args)
       #proc.communicate()
@@ -538,8 +539,6 @@ class Window(QWidget):
         os.remove('qstat.out')
            
   def on_submit(self):
-    print("TESTING...")
-    print(self.lib_opt.selected)
     self.counter = 0
     self.status =  'status_%s.txt' % uuid.uuid4()
     status_obj = open(self.status,'w')

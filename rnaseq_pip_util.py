@@ -264,9 +264,7 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         if index_args is None:
           cmdArgs += ['-k', '15']
         else:
-          print(index_args)
           index_args = index_args.split(' ')
-          print(index_args)
           cmdArgs += index_args
         if '-k' not in cmdArgs:
           cmdArgs += ['-k', '15']
@@ -413,19 +411,16 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         fo = fastq_dirs[k] + '/' + fo
         sam = fo + '.sam'
         sam_list.append(sam)
-        hisat_log = fo + '.log'
         if mapq > 0 :
           bam = '%s.pe.sorted_fil_%d.out.bam' % (fo,mapq)
         else:
           bam = '%s.pe.sorted.out.bam' % fo
         bam_list.append(bam)
-        print(exists_skip(bam))
-        print(exists_skip(sam))
         if exists_skip(bam):
           sam_list0.append(sam)
           bam_list0.append(bam)
           cmdArgs0 = cmdArgs + ['-1',trimmed_fq_r1, '-2', trimmed_fq_r2,'-S',sam]
-          util.call(cmdArgs0, stdout=hisat_log)
+          util.call(cmdArgs0)
         k +=1
     if len(bam_list0)>0:
       util.info('Converting sam to bam...')
@@ -446,9 +441,15 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
                   '--outSAMtype','BAM','SortedByCoordinate',
                   '--readFilesIn']
     else:
-      al_args  = al_args.split()
-      cmdArgs += al_args
-      cmdArgs.append('--readFilesIn')
+      if 'SortedByCoordinate' in al_args:
+        al_args  = al_args.split()
+        cmdArgs += al_args
+        cmdArgs.append('--readFilesIn')
+      else:
+        al_args  = al_args.split()
+        cmdArgs += al_args
+        cmdArgs += ['--outSAMtype','BAM','SortedByCoordinate',
+                   '--readFilesIn']
     
     k=0
     if is_single_end:
