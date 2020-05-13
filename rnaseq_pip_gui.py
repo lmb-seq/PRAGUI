@@ -627,7 +627,7 @@ class BuildCSV(QWidget):
   
   def file_look_up(self,row,column):
     if column in [1,2]:
-      fname = QFileDialog.getOpenFileName(self, 'Open file', cwd=self.cwd)
+      fname = QFileDialog.getOpenFileName(self, 'Open file', self.cwd)
       self.cwd = os.path.dirname(fname[0])
       if fname[0]:
         self.samples_table.setItem(row,column,QTableWidgetItem(fname[0]))
