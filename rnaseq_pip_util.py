@@ -297,8 +297,8 @@ def align(trimmed_fq, fastq_dirs, aligner, fasta_file , al_index =None, al_args=
         index_head = '.'.join(index_head)
         index_head = "%s/%s" % (al_index,index_head)
     # Index for STAR
-    if aligner is ALIGNER_STAR:
-      check = al_index + 'genomeParameters.txt'
+    if aligner == ALIGNER_STAR:
+      check = al_index + '/genomeParameters.txt'
       if not os.path.exists(check):
         cmdArgs = [ALIGNER_STAR,
                    '--runMode','genomeGenerate',
