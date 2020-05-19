@@ -481,7 +481,12 @@ class Window(QWidget):
       tempObj = open(temp, 'w')
       tempObj.write(command)
       tempObj.close()
-      qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
+      if len(self.cpu_args)>0:
+        cpu = dict_args['cpu']
+      else:
+        cpu = '4'
+      #qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
+      qsubArgs = ['qsub', '-cwd', '-pe', 'smp', cpu, '-j', 'y', '-V', temp]
       util.call(qsubArgs)
       show_pop_up(msg='Job submitted to LMB cluster!')
       os.remove(temp)
