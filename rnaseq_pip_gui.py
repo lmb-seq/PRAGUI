@@ -203,8 +203,8 @@ class Window(QWidget):
     self.csv_opt.activated[str].connect(self.csv_func)
     self.an_lbl  = QLabel('ANALYSIS',self)
     self.an_lbl  = section_label(self.an_lbl)
-    self.txqt_lbl  = QLabel('Transcript Quantification',self)
-    self.txqt_opt  = MyQComboBox(self,['STAR + HTSeq', 'HISAT2 + HTSeq', 'Salmon'])
+    self.txqt_lbl  = QLabel('Read Mapping Program',self)
+    self.txqt_opt  = MyQComboBox(self,['STAR', 'HISAT2', 'Salmon'])
     self.de_lbl  = QLabel('Statistical Method',self)
     self.de_opt  = MyQComboBox(self,['DESeq','Cufflinks'])
     self.lib_lbl = QLabel('Library',self)
@@ -217,9 +217,9 @@ class Window(QWidget):
                                      'from END (3\' to 5\')', 'both'])
     self.files_lbl = QLabel('INPUT FILES',self)
     self.files_lbl = section_label(self.files_lbl)
-    self.fa_file_frame      = MyFileFetchFrame(self,'Genome Fasta File','Browse')
-    self.gtf_file_frame     = MyFileFetchFrame(self,'Genome GTF File','Browse')
-    self.geneset_file_frame = MyFileFetchFrame(self,'Geneset File','Browse')
+    self.fa_file_frame      = MyFileFetchFrame(self,'Fasta File','Browse')
+    self.gtf_file_frame     = MyFileFetchFrame(self,'GTF File for HTSeq','Browse')
+    self.geneset_file_frame = MyFileFetchFrame(self,'GTF File for Cufflinks','Browse')
     self.software_args = QLabel('SOFTWARE ARGUMENTS',self)
     self.software_args = section_label(self.software_args)
     self.tgalore   = ParseSoftwareArgs(self,'TrimGalore')
@@ -242,6 +242,9 @@ class Window(QWidget):
     self.log         = QCheckBox('Log output to file')
     self.log.setChecked(True)
     self.qsub        = QCheckBox('Submit job to LMB cluster')
+    self.node        = QCheckBox('Request a whole node')
+    self.node.setEnabled(False)
+    self.qsub.stateChanged.connect(self.enable_node_request)
     self.csv_create = BuildCSV(None)
     self.csv_upload = UploadCSV(None)
     submit_btn = QPushButton('Submit',self)
@@ -267,7 +270,7 @@ class Window(QWidget):
     grid.addWidget(self.SoftArgsGroupBox,20,0,2,3)
     grid.addWidget(QLabel('',self),22,0,1,3) # add empty row
     grid.addWidget(self.opts_lbl,23,0,1,4)
-    grid.addWidget(self.ProcOptsGroupBox,24,0,3,3)
+    grid.addWidget(self.ProcOptsGroupBox,24,0,3,4)
     grid.addWidget(QLabel('',self),28,0,1,3) # add empty row
     grid.addWidget(submit_btn,29,1)
     grid.addWidget(quit_btn,29,2)
@@ -340,6 +343,7 @@ class Window(QWidget):
     grid5.addWidget(self.log,1,1)
     grid5.addWidget(self.qsub,1,3)
     grid5.addWidget(self.cpu,2,3)
+    grid5.addWidget(self.node,3,3)
     self.ProcOptsGroupBox.setLayout(grid5)
      
   def csv_func(self, text):
@@ -362,7 +366,14 @@ class Window(QWidget):
         self.pe_tags = None
       if self.pe_tags is None:
         show_error_message("Tags haven't been specified. Please specify paired-end tags.")
-    
+  
+  def enable_node_request(self,checked):
+    if checked:
+      self.node.setEnabled(True)
+    else:
+      self.node.setEnabled(False)
+      #self.log.setChecked(False)
+  
   def closeEvent(self, event):
     """
     This function shows a confirmation 
@@ -481,12 +492,16 @@ class Window(QWidget):
       tempObj = open(temp, 'w')
       tempObj.write(command)
       tempObj.close()
-      if len(self.cpu_args)>0:
-        cpu = dict_args['cpu']
+      qsubArgs = ['qsub', '-cwd', '-j', 'y', '-V']
+      if self.node.isChecked():
+        qsubArgs = qsubArgs + ['-l', 'dedicated=24', temp]
       else:
-        cpu = '4'
-      #qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
-      qsubArgs = ['qsub', '-cwd', '-pe', 'smp', cpu, '-j', 'y', '-V', temp]
+        if len(self.cpu_args)>0:
+          cpu = dict_args['cpu']
+        else:
+          cpu = '4'
+        #qsubArgs = ['qsub', '-cwd', '-pe', 'smp', '4', '-j', 'y', '-V', temp]
+        qsubArgs = qsubArgs + ['-pe', 'smp', cpu, temp]
       util.call(qsubArgs)
       show_pop_up(msg='Job submitted to LMB cluster!')
       os.remove(temp)

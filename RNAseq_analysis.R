@@ -6,15 +6,17 @@ i <- args[2]
 i <- unlist(strsplit(i,split = "_"))
 
 
-lmb_clust_packages = "/lmb/home/paulafp/applications/" # Only needed to run pipeline at the LMB
+#lmb_clust_packages = "/lmb/home/paulafp/applications/" # Only needed to run pipeline at the LMB
 
-if("R_lib" %in% dir(lmb_clust_packages)){
-  pack_loc = paste0(lmb_clust_packages,"R_lib/")
-  packages = rownames(installed.packages(pack_loc))
-  .libPaths(c(.libPaths(),pack_loc))
-} else {
-  packages = rownames(installed.packages())
-}
+#if("R_lib" %in% dir(lmb_clust_packages)){
+#  pack_loc = paste0(lmb_clust_packages,"R_lib/")
+#  packages = rownames(installed.packages(pack_loc))
+#  .libPaths(c(.libPaths(),pack_loc))
+#} else {
+#  packages = rownames(installed.packages())
+#}
+
+packages = rownames(installed.packages())
 
 if(!"data.table" %in% packages){
   cat("data.table has not been installed....\nInstalling data.table\n")
@@ -93,6 +95,21 @@ design_formula <- as.formula(paste("~",args[5]))
 
 txdb <- makeTxDbFromGFF(gtf)
 
+
+try_tximport <- function (file_list, tx2gene = tx2gene) {
+  txi <- try(tximport(file_list, type = type, tx2gene = tx2gene))
+  if (class(txi) == "try-error") {
+    cat("Caught an error during tximport, trying adding ignoreTxVersion=TRUE...\n")
+    txi <- try(tximport(file_list, type = "salmon", tx2gene = tx2gene, ignoreTxVersion=TRUE))
+    if (class(txi) == "try-error") {
+      cat("Caught new error during tximport, trying adding ignoreAfterBar=TRUE...\n")
+      txi <- try(tximport(file_list, type = "salmon", tx2gene = tx2gene, ignoreAfterBar=TRUE))
+    }
+  }
+  return(txi)
+}
+
+
 if("salmon" %in% i){
   library(tximport)
   files <- sampleTable$filename
@@ -100,7 +117,8 @@ if("salmon" %in% i){
   names(files) <- sampleTable$samplename
   k <- keys(txdb, keytype = "TXNAME")
   tx2gene <- select(txdb, k, "GENEID", "TXNAME")
-  txi <- tximport(files, type = "salmon", tx2gene = tx2gene)
+  #txi <- tximport(files, type = "salmon", tx2gene = tx2gene, ignoreTxVersion=TRUE)
+  txi <- try_tximport(file_list = files, tx2gene = tx2gene)
   colnames(txi$counts)<-sampleTable$samplename
   sampleTable <- as.data.frame(sampleTable)
   sampleTable2<-data.frame(sampleTable[,args[5]])

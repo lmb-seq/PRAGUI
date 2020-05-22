@@ -147,10 +147,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
       f0 = os.path.expanduser(f)
       d = os.path.dirname(f0)
       f = os.path.basename(f)
-      if '.gz' in f:
-        f = f.rstrip('.gz')
-      if '.fq' in f or '.fastq' in f:
-        f = f.rstrip('.fastq')        
+      f = f.replace('.gz', '').replace('.fastq', '').replace('.fq','')        
 
       #if 'fq.gz' in f:
       #  f=f.split(".")
@@ -176,17 +173,7 @@ def trim_bam(samples_csv, csv, trim_galore=None, skipfastqc=False, fastqc_args=N
     for f in fastq_paths:
       f0 = os.path.expanduser(f)
       f = os.path.basename(f)
-      if '.gz' in f:
-        f = f.rstrip('.gz')
-      if '.fq' in f or '.fastq' in f:
-        f=f.split(".")
-        f = f[:-1]
-        f = '.'.join(f)
-#        f = f.rstrip('.fastq')
-#      if f[-5:] == 'fq.gz' or f[-8:] == 'fastq.gz':
-#        f=f.split(".")
-#        f = f[:-2]
-#        f = '.'.join(f)
+      f = f.replace('.gz', '').replace('.fastq', '').replace('.fq','')
       if pair_tags[0] in f:
         trimmed_filename = od + '/' + f + '_val_1.fq.gz'
         d = os.path.dirname(f0)             # directory where fastq file is stored
