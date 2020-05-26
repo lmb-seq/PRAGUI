@@ -545,7 +545,7 @@ def read_count_htseq_parallel(bam_files,genome_gtf,num_cpu, stranded='no'):
   return(counts)
 
 
-def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism, log, aligner, contrast='condition', levels=None):
+def DESeq_analysis(rc_file_list,samples_csv, csv, header, genome_gtf, organism, log, aligner, contrast='condition', levels=None):
 
   if organism not in ['human', 'mouse', 'worm', 'fly', 'yeast', 'zebrafish']:
     organism = "None"
@@ -616,9 +616,9 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
 
     rnaseq_analysis_script = os.path.join(pragui_directory, 'RNAseq_analysis.R')
     if levels is None:
-      cmdArgs = ['Rscript', '--vanilla', rnaseq_analysis_script, csv_deseq_name, i, geneset_gtf, organism, contrast]
+      cmdArgs = ['Rscript', '--vanilla', rnaseq_analysis_script, csv_deseq_name, i, genome_gtf, organism, contrast]
     else:
-      cmdArgs = ['Rscript', '--vanilla', rnaseq_analysis_script, csv_deseq_name, i, geneset_gtf, organism, contrast] + levels
+      cmdArgs = ['Rscript', '--vanilla', rnaseq_analysis_script, csv_deseq_name, i, genome_gtf, organism, contrast] + levels
 
     if "deseq" in i:
       DESeq_out_obj = open(DESeq_summary,"wb")
@@ -635,7 +635,7 @@ def DESeq_analysis(rc_file_list,samples_csv, csv, header, geneset_gtf, organism,
 
 
 def Cufflinks_analysis(bam_files, samples_csv, csv, fasta_file , cuff_opt=None, cuff_gtf=False, num_cpu=util.MAX_CORES,
-                       geneset_gtf=None,cuffnorm=False, status = None, stranded=None):
+                       genome_gtf=None,cuffnorm=False, status = None, stranded=None):
 
   out_folder = './'
   library_type = None
@@ -720,7 +720,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, fasta_file , cuff_opt=None, 
       if cuff_gtf is True:
         if not is_gtf_specified:
           cmdArgs.append('-g')
-          cmdArgs.append(geneset_gtf)
+          cmdArgs.append(genome_gtf)
         else:
           util.critical('Option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...')
       cmdArgs.append(f)
@@ -754,7 +754,7 @@ def Cufflinks_analysis(bam_files, samples_csv, csv, fasta_file , cuff_opt=None, 
       if err is 1:
         util.critical('Option "-cuff_gtf" should not be specified if "-g" option from Cufflinks has already been set in "-cuff_opt". Exiting...')
       cmdArgs.append('-g')
-      cmdArgs.append(geneset_gtf)
+      cmdArgs.append(genome_gtf)
     cmdArgs.append(assemblies)
     util.call(cmdArgs,stderr='cuffmerge_stderr.log')
     rm_lines('cuffmerge_stderr.log',util.LOG_FILE_PATH)
@@ -894,7 +894,7 @@ def run_multiqc(multiqc=True):
     util.info('Running multiqc on working directory...')
     util.call(['multiqc','.'])
 
-def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
+def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, analysis_type=['DESeq','Cufflinks'][0], trim_galore=None, 
                        skipfastqc=False, fastqc_args=None, aligner=DEFAULT_ALIGNER,organism=None, is_single_end=False, pair_tags=['r_1','r_2'],
                        index_args = None, al_index =None,al_args=None,num_cpu=util.MAX_CORES,mapq=20,stranded='no',contrast='condition',levels=None,
                        cuff_opt=None, cuff_gtf=False,cuffnorm=False, multiqc=True,python_command=None,q=False,log=False, gui=False, status=None):
@@ -934,8 +934,6 @@ def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, a
   else:
     util.critical('Expecting ANALYSIS_TYPE to be either DESeq2 or Cufflinks...')
 
-  if geneset_gtf is None:
-    geneset_gtf = genome_gtf
 
   # Parse samples csv file
 
@@ -976,7 +974,7 @@ def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, a
       status_obj.write('Read count done...\n')
       status_obj.close()
     DESeq_analysis(rc_file_list=quant_files, header=header, csv=csv, samples_csv=samples_csv,
-                   geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels,log=log,aligner=aligner)
+                   genome_gtf=genome_gtf,organism=organism,contrast=contrast,levels=levels,log=log,aligner=aligner)
   else:
     bam_files = out_files
     if analysis_type == 'DESeq':
@@ -990,12 +988,12 @@ def rnaseq_diff_caller(samples_csv, fasta_file , genome_gtf, geneset_gtf=None, a
         status_obj.close()
       # DESeq and exploratory analysis
       DESeq_analysis(rc_file_list=rc_file_list, header=header, csv=csv, samples_csv=samples_csv,
-                     geneset_gtf=geneset_gtf,organism=organism,contrast=contrast,levels=levels,log=log,aligner=aligner)
+                     genome_gtf=genome_gtf,organism=organism,contrast=contrast,levels=levels,log=log,aligner=aligner)
 
     if analysis_type == 'Cufflinks':
     
       Cufflinks_analysis(bam_files=bam_files, samples_csv=samples_csv, csv=csv, cuff_opt=cuff_opt, cuff_gtf=cuff_gtf, num_cpu=num_cpu,
-                         fasta_file =fasta_file , geneset_gtf=geneset_gtf,cuffnorm=cuffnorm,status=status)
+                         fasta_file =fasta_file , genome_gtf=genome_gtf,cuffnorm=cuffnorm,status=status)
   
   if status is not None:
     status_obj = open(status,'a')
@@ -1083,9 +1081,6 @@ if __name__ == '__main__':
   arg_parse.add_argument('-genome_gtf', metavar='GENOME_ANNOTATIONS_GTF', default=None,
                          help='File path of gene annotations in gtf/gff format (for use by htseq-count). This file is only required when performing an analysis using DESeq2.')
 
-  arg_parse.add_argument('-geneset_gtf', default=None,
-                         help='File path of gene annotations in gtf/gff format needed to compute TPMs. If this file is not provided, GENOME_ANNOTATIONS_GTF will be used.')
-
   arg_parse.add_argument('-trim_galore', # metavar='TRIM_GALORE_OPTIONS',
                          default=None,
                          help='options to be provided to fastqc. They should be provided under double quotes. If not provided, fastqc will run with developer\'s default options.')
@@ -1137,7 +1132,7 @@ if __name__ == '__main__':
                          help='options to be provided to cufflinks. They should be provided under quotes. If not provided, cufflinks will run with developer\'s default options.')
 
   arg_parse.add_argument('-cuff_gtf', default=False, action='store_true',
-                         help='Set "-g" option from cufflinks and use file specified in "-geneset_gtf" option. This option should not be set if "-cuff_gtf" already incorporates a gtf file to be used.')
+                         help='Set "-g" option from cufflinks and use file specified in "-genome_gtf" option. This option should not be set if "-cuff_gtf" already incorporates a gtf file to be used.')
 
   arg_parse.add_argument('-cuffnorm', default=False, action='store_true',
                          help='Specify whether Cuffnorm should be executed besides Cuffdiff.')
@@ -1163,7 +1158,6 @@ if __name__ == '__main__':
   fasta_file   = args['fasta_file ']
   analysis_type = args['analysis_type']
   genome_gtf    = args['genome_gtf']
-  geneset_gtf   = args['geneset_gtf']
   trim_galore   = args['trim_galore']
   skipfastqc    = args['skipfastqc']
   fastqc_args   = args['fastqc_args']
@@ -1193,10 +1187,10 @@ if __name__ == '__main__':
   # Save python command
   python_command = ' '.join(sys.argv) + '\n'
   
-  rnaseq_diff_caller(samples_csv=samples_csv, fasta_file =fasta_file , genome_gtf=genome_gtf, geneset_gtf=geneset_gtf, 
+  rnaseq_diff_caller(samples_csv=samples_csv, fasta_file =fasta_file , genome_gtf=genome_gtf, levels=levels,
                      analysis_type=analysis_type, trim_galore=trim_galore, skipfastqc=skipfastqc, fastqc_args=fastqc_args,
                      aligner=aligner, organism=organism,is_single_end=is_single_end, pair_tags=pair_tags,al_index= al_index,
-                     index_args = index_args, al_args=al_args,num_cpu=num_cpu,mapq=mapq,stranded=stranded,contrast=contrast,levels=levels,
+                     index_args = index_args, al_args=al_args,num_cpu=num_cpu,mapq=mapq,stranded=stranded,contrast=contrast,
                      cuff_opt=cuff_opt, cuff_gtf=cuff_gtf,cuffnorm=cuffnorm, multiqc=multiqc,python_command=python_command,q=q,
                      log=log,gui=gui,status=status)
 

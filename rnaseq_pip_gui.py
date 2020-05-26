@@ -218,8 +218,7 @@ class Window(QWidget):
     self.files_lbl = QLabel('INPUT FILES',self)
     self.files_lbl = section_label(self.files_lbl)
     self.fa_file_frame      = MyFileFetchFrame(self,'Fasta File','Browse')
-    self.gtf_file_frame     = MyFileFetchFrame(self,'GTF File for HTSeq','Browse')
-    self.geneset_file_frame = MyFileFetchFrame(self,'GTF File for Cufflinks','Browse')
+    self.gtf_file_frame     = MyFileFetchFrame(self,'GTF File','Browse')
     self.software_args = QLabel('SOFTWARE ARGUMENTS',self)
     self.software_args = section_label(self.software_args)
     self.tgalore   = ParseSoftwareArgs(self,'TrimGalore')
@@ -292,7 +291,6 @@ class Window(QWidget):
     grid1.addWidget(self.csv_opt,1,1,1,3)
     grid1.addWidget(self.fa_file_frame,2,0,1,4)
     grid1.addWidget(self.gtf_file_frame,3,0,1,4)
-    grid1.addWidget(self.geneset_file_frame,4,0,1,4)
     self.InputFilesGroupBox.setLayout(grid1)
   
   # Library Info
@@ -414,7 +412,6 @@ class Window(QWidget):
     self.txqt   = self.txqt_opt.selected
     self.fa_file      = self.fa_file_frame.lbox.text()
     self.gtf_file     = self.gtf_file_frame.lbox.text()
-    self.geneset_file = self.geneset_file_frame.lbox.text()
     self.index_dir    = self.index_dir_frame.lbox.text()
     self.tgalore_args   = self.tgalore.lbox.text()
     self.fastqc_args    = self.fastqc.lbox.text()
@@ -453,8 +450,6 @@ class Window(QWidget):
                  'contrast'      : self.contrast,
                  'status'        : self.status
                  }
-    if len(self.geneset_file)>0:
-      dict_args['geneset_gtf'] = '"%s"' % self.gtf_file
     if len(self.tgalore_args)>0:
       dict_args['trim_galore'] = '"%s"' % self.tgalore_args
     if len(self.fastqc_args)>0:
