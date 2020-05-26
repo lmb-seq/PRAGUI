@@ -438,10 +438,11 @@ class Window(QWidget):
     strand_lib = {'from START (5\' to 3\')':'yes',
                   'from END (3\' to 5\')':'reverse',
                   'both':'no'}
-    dict_aux  = {'STAR + HTSeq'   : 'STAR',
-                 'HISAT2 + HTSeq' : 'hisat2',
-                 'Salmon'         : 'salmon'}
-                 
+    dict_aux  = {'STAR'   : 'STAR',
+                 'HISAT2' : 'hisat2',
+                 'Salmon' : 'salmon'}
+    print('TEST2')    
+    print(dict_aux[self.txqt])         
     dict_args = {'al'            : dict_aux[self.txqt],
                  'analysis_type' : self.de,
                  'genome_gtf'    : self.gtf_file,
@@ -450,6 +451,7 @@ class Window(QWidget):
                  'contrast'      : self.contrast,
                  'status'        : self.status
                  }
+    print('TEST3')
     if len(self.tgalore_args)>0:
       dict_args['trim_galore'] = '"%s"' % self.tgalore_args
     if len(self.fastqc_args)>0:
